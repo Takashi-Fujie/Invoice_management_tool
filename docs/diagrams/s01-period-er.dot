@@ -1,0 +1,25 @@
+// 生成元: docs/ER図とデータ設計.md。再生成: python3 docs/diagrams/build-er-viewer.py
+digraph periodER {
+graph [rankdir=LR,bgcolor="#f7f9fc",pad="0.3",fontname="Hiragino Sans",fontsize=18,label="対象年月の画面状態と現行DB · 版9",labelloc=t];
+node [shape=box,style="rounded,filled",fillcolor=white,fontname="Hiragino Sans",fontsize=12,margin="0.2,0.15"];
+edge [fontname="Hiragino Sans",fontsize=11];
+subgraph cluster_state { label="画面内メモリ・DBテーブルではない";fontname="Hiragino Sans";
+period [label="選択中の対象年・月\n年度は1月〜12月"];
+draft [label="編集開始時の年月・未保存入力\n読取・保存の成功後に切替を確定"];
+period -> draft [style=dashed];}
+subgraph cluster_db { label="現行の5表・対象年月の参照に必要な列だけ表示";fontname="Hiragino Sans";
+client_month_visibility [label="月別会社表示\nclient_month_visibility\nclient_id\ntarget_year\ntarget_month"];
+clients [label="会社\nclients\nid"];
+billable_items [label="請求対象\nbillable_items\nid\nclient_id\ntarget_year\ntarget_month"];
+invoices [label="月次請求\ninvoices\nid\nclient_id\ntarget_year\ntarget_month"];
+invoice_lines [label="請求明細\ninvoice_lines\nid\ninvoice_id\nbillable_item_id"];
+clients -> billable_items [label="1 : 0件以上"];
+clients -> invoices [label="1 : 0件以上"];
+clients -> client_month_visibility [label="1 : 0件以上"];
+invoices -> invoice_lines [label="1 : 0件以上"];
+billable_items -> invoice_lines [label="1 : 0または1件"];
+}
+period -> billable_items [style=dashed,label="年月で絞る・FKではない"];
+period -> invoices [style=dashed,label="年月で絞る・FKではない"];
+period -> client_month_visibility [style=dashed,label="年月で絞る・FKではない"];
+}

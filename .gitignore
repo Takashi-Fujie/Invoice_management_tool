@@ -1,0 +1,22 @@
+node_modules
+dist/
+.local-data/
+*.sqlite*
+*.db
+*.db-*
+.env*
+!.env.example
+coverage/
+test-results/
+*.log
+.DS_Store
+
+# Credentials and private keys
+.npmrc
+.pypirc
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+token*.json

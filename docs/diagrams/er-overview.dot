@@ -1,0 +1,16 @@
+// 生成元: docs/ER図とデータ設計.md。再生成: python3 docs/diagrams/build-er-viewer.py
+digraph ER {
+graph [rankdir=TB,bgcolor="#f7f9fc",pad="0.3",nodesep="0.5",ranksep="0.8",fontname="Hiragino Sans",fontsize=18,label="現行の物理ER · DB版9 · 5表\n版：0.17 S16の既存DBからの年間読取を反映（DB版9を維持）　更新日：2026年11月3日",labelloc=t];
+node [shape=box,style="rounded,filled",fontname="Hiragino Sans",fontsize=13,margin="0.2,0.15",color="#bacbdd",fillcolor=white];
+edge [fontname="Hiragino Sans",fontsize=11,color="#68819a"];
+client_month_visibility [label="月別会社表示\nclient_month_visibility\n4列"];
+clients [label="会社\nclients\n3列"];
+billable_items [label="請求対象\nbillable_items\n17列"];
+invoices [label="月次請求\ninvoices\n8列"];
+invoice_lines [label="請求明細\ninvoice_lines\n14列"];
+clients -> billable_items [label="1 : 0件以上"];
+clients -> invoices [label="1 : 0件以上"];
+clients -> client_month_visibility [label="1 : 0件以上"];
+invoices -> invoice_lines [label="1 : 0件以上"];
+billable_items -> invoice_lines [label="1 : 0または1件"];
+}

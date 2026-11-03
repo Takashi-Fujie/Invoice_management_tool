@@ -1,0 +1,5 @@
+CREATE TABLE clients(id TEXT PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE invoices(id TEXT PRIMARY KEY, client_id TEXT NOT NULL REFERENCES clients(id), target_year INTEGER NOT NULL CHECK(target_year BETWEEN 1 AND 9999), target_month INTEGER NOT NULL CHECK(target_month BETWEEN 1 AND 12), total_yen INTEGER NOT NULL CHECK(total_yen>=0), invoiced INTEGER NOT NULL CHECK(invoiced IN(0,1)), paid INTEGER NOT NULL CHECK(paid IN(0,1)), UNIQUE(client_id,target_year,target_month));
+CREATE TABLE billable_items(id TEXT PRIMARY KEY, client_id TEXT NOT NULL REFERENCES clients(id), target_year INTEGER NOT NULL, target_month INTEGER NOT NULL, description TEXT NOT NULL, amount_yen INTEGER NOT NULL CHECK(amount_yen>=0));
+CREATE TABLE invoice_lines(id TEXT PRIMARY KEY, invoice_id TEXT NOT NULL REFERENCES invoices(id), billable_item_id TEXT NOT NULL UNIQUE REFERENCES billable_items(id), line_no INTEGER NOT NULL, description TEXT NOT NULL, total_yen INTEGER NOT NULL, UNIQUE(invoice_id,line_no));
+PRAGMA user_version=1;
