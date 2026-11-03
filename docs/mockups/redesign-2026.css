@@ -754,7 +754,7 @@ select {
 #design-app .mm-summary-table tbody th {
   font-weight: 600;
 }
-#design-app .mm-summary-table td:last-child {
+#design-app .mm-summary-table td[data-amount-key="invoice"] {
   color: var(--green);
   font-weight: 700;
 }
@@ -998,14 +998,26 @@ select {
   text-decoration: underline;
 }
 #design-app .status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 19px;
+  height: 19px;
+  border-radius: 4px;
+  color: var(--sub);
+  background: var(--surface-muted);
   font-size: 10px;
-  color: var(--muted);
+  font-weight: 650;
+  line-height: 1;
 }
 #design-app .status-icon.invoiced {
   color: var(--blue);
+  background: var(--blue-soft);
 }
 #design-app .status-icon.paid {
   color: var(--green);
+  background: var(--green-soft);
 }
 #design-app .annual-table .year-total {
   color: var(--green);

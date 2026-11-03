@@ -735,7 +735,7 @@ select {
 #app .mm-summary-table tbody th {
   font-weight: 600;
 }
-#app .mm-summary-table td:last-child {
+#app .mm-summary-table td[data-amount-key="invoice"] {
   color: var(--green);
   font-weight: 700;
 }
@@ -1359,6 +1359,7 @@ select {
   text-decoration: underline;
 }
 #app .annual-toggle {
+  justify-content: flex-start;
   text-align: left;
   width: 100%;
 }

@@ -272,7 +272,7 @@ test("S14-T04：版8の表再構築後の失敗で全構造・版・データと
     rmSync(dir, { recursive: true, force: true });
   }
 });
-test("S14-T05：集計で値引きの次に調整額を符号付き表示", () => {
+test("S14-T05：集計で調整額の次に値引きを符号付き表示", () => {
   const html = renderToStaticMarkup(
     React.createElement(MonthlySummary, {
       data: monthSummary(data().companies),
@@ -280,6 +280,6 @@ test("S14-T05：集計で値引きの次に調整額を符号付き表示", () =
       month: 4,
     }),
   );
-  expect(html).toMatch(/値引き<\/th><th[^>]*>調整額<\/th>/);
-  expect(html).toContain("-¥1");
+  expect(html).toMatch(/調整額<\/th><th[^>]*>値引き<\/th>/);
+  expect(html).toContain('data-amount-key="adjustment">-¥1</td>');
 });

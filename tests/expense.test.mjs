@@ -274,7 +274,7 @@ test("S28-T04：表再構築中の失敗で全列・制約・版・データを�
     rmSync(dir, { recursive: true, force: true });
   }
 });
-test("S28-T05：集計表の交通費の次に立替経費を表示", () => {
+test("S28-T05：集計表の立替経費の次に交通費を表示", () => {
   const markup = renderToStaticMarkup(
     React.createElement(MonthlySummary, {
       data: monthSummary([company([row("e", "expense", 770)])]),
@@ -282,6 +282,6 @@ test("S28-T05：集計表の交通費の次に立替経費を表示", () => {
       month: 8,
     }),
   );
-  expect(markup).toMatch(/交通費<\/th><th[^>]*>立替経費<\/th>/);
+  expect(markup).toMatch(/立替経費<\/th><th[^>]*>交通費<\/th>/);
   expect(markup).toContain("¥770");
 });
