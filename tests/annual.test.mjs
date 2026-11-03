@@ -127,7 +127,7 @@ test("S16-T01/T02/T03/T04/T06：初期は閉じ、展開時は承認順の10項�
   expect(closed).toContain('href="/?year=2026&amp;month=1"');
   expect(closed).toContain('aria-label="入金済み"');
   expect(closed).toContain('aria-label="請求済・未入金"');
-  expect(closed).toContain('aria-label="請求前"');
+  expect(closed).toContain('aria-label="未請求"');
   const html = render(["a", "__all"]);
   for (const companyName of ["会社a（架空）", "全社合計"]) {
     let previous = -1;

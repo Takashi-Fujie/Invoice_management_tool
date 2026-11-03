@@ -18,7 +18,6 @@ import {
   visibilityBlockReason,
 } from "../../src/company-visibility.mjs";
 import { CompanyManager } from "../../src/CompanyManager";
-import { MonthlySummary } from "../../src/MonthlySummary";
 import "./redesign-2026.css";
 
 const paths = {
@@ -48,6 +47,59 @@ const displayedSummaryRow = (row) => ({
   ...row,
   discount: displayedAmount("discount", row.discount),
 });
+// 本番とは独立した表示用モック。モデルの税込金額と表示用の符号を使う。
+function MonthlySummary({ data, year, month }) {
+  const columns = [["invoice", "請求額"], ...details];
+  const row = (entry) => (
+    <tr key={entry.id} aria-label={`${entry.name}の月次集計`}>
+      <th scope="row">{entry.name}</th>
+      <td
+        className={`mm-summary-status ${entry.status === "入金済み" ? "status-paid" : entry.status === "請求済" ? "status-invoiced" : ""}`}
+      >
+        {entry.status}
+      </td>
+      {columns.map(([key]) => (
+        <td key={key} data-amount-key={key}>
+          {detailMoney(key, entry[key], true)}
+        </td>
+      ))}
+    </tr>
+  );
+  return (
+    <section className="mm-monthly-summary" aria-label="当月の会社別集計">
+      <div className="mm-summary-heading">
+        <h2>当月の会社別集計</h2>
+        <p>
+          {year}年{month}月 ·
+          報酬額・交通費・立替経費は入力額の合計。請求額は源泉控除後の入金予定額、税抜合計・消費税は値引き前です。
+        </p>
+      </div>
+      <div
+        className="mm-summary-scroll"
+        tabIndex={0}
+        aria-label="会社別集計の横スクロール"
+      >
+        <table className="mm-summary-table" aria-label="当月の会社別集計">
+          <thead>
+            <tr>
+              <th scope="col">会社名</th>
+              <th scope="col">ステータス</th>
+              {columns.map(([key, label]) => (
+                <th key={key} scope="col">
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.filter((entry) => entry.invoice !== 0).map(row)}
+          </tbody>
+          <tfoot>{row(data.total)}</tfoot>
+        </table>
+      </div>
+    </section>
+  );
+}
 function Icon({ name, size = 17 }) {
   return (
     <svg
@@ -265,13 +317,19 @@ function App() {
           <span
             className={`status-icon ${record.status === "入金済み" ? "paid" : record.status === "請求済" ? "invoiced" : ""}`}
             role="img"
-            aria-label={record.status}
+            aria-label={
+              record.status === "請求前"
+                ? "未請求"
+                : record.status === "請求済"
+                  ? "請求済・未入金"
+                  : record.status
+            }
           >
             {record.status === "入金済み"
-              ? "✓"
+              ? "済"
               : record.status === "請求済"
-                ? "▤"
-                : "○"}
+                ? "待"
+                : "未"}
           </span>
         )}
       </button>
@@ -881,8 +939,24 @@ function App() {
             <div className="annual-caption">
               <h2>会社別の請求額</h2>
               <span>
-                ○ 請求前 <span className="blue">▤ 請求済・未入金</span>{" "}
-                <span className="green">✓ 入金済み</span>
+                <span>
+                  <span className="status-icon" aria-hidden="true">
+                    未
+                  </span>{" "}
+                  未請求
+                </span>
+                <span className="blue">
+                  <span className="status-icon invoiced" aria-hidden="true">
+                    待
+                  </span>{" "}
+                  請求済・未入金
+                </span>
+                <span className="green">
+                  <span className="status-icon paid" aria-hidden="true">
+                    済
+                  </span>{" "}
+                  入金済み
+                </span>
               </span>
             </div>
             <div

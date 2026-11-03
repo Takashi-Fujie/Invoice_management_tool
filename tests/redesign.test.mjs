@@ -10,7 +10,7 @@ import {
 import { CompanyAmounts } from "../src/CompanyAmounts.tsx";
 import { PeriodControl } from "../src/PeriodControl.tsx";
 import { AppHeader } from "../src/AppHeader.tsx";
-import { AnnualTable } from "../src/AnnualSummary.tsx";
+import { AnnualTable, StatusIcon } from "../src/AnnualSummary.tsx";
 import { MonthlySummary } from "../src/MonthlySummary.tsx";
 import { annualSummary } from "../src/annual.mjs";
 import { monthSummary } from "../src/summary.mjs";
@@ -138,4 +138,90 @@ test("S35-T01：本番の名称と画面ナビを示し、モックの案内や�
   expect(html.match(/請求管理ツール/g)).toHaveLength(1);
   expect(html).not.toContain("架空");
   expect(html).not.toContain("モック");
+});
+
+test("S35-T05：状態を未・待・済で読み取れ、未登録・全社合計へ誤った状態を付けない", () => {
+  for (const [status, glyph, label] of [
+    ["請求前", "未", "未請求"],
+    ["請求済", "待", "請求済・未入金"],
+    ["入金済み", "済", "入金済み"],
+  ]) {
+    const html = render(StatusIcon, { status });
+    expect(html).toContain(`>${glyph}</span>`);
+    expect(html).toContain(`aria-label="${label}"`);
+    expect(html).toContain(`title="${label}"`);
+  }
+  const companies = [
+    c,
+    {
+      ...c,
+      id: "b",
+      name: "白波（架空）",
+      rows: c.rows.map((r) => ({ ...r, id: "b1" })),
+      invoiced: true,
+    },
+    {
+      ...c,
+      id: "c",
+      name: "緑山（架空）",
+      rows: c.rows.map((r) => ({ ...r, id: "c1" })),
+      invoiced: true,
+      paid: true,
+    },
+  ];
+  const data = annualSummary(2026, [
+    { month: 11, data: { companies }, registeredIds: ["a", "b", "c"] },
+  ]);
+  const before = structuredClone(data);
+  const html = render(AnnualTable, {
+    data,
+    expanded: new Set(["a", "__all"]),
+    onToggle: () => {},
+  });
+  expect(html.match(/class="annual-status[^"]*"/g)).toHaveLength(3);
+  expect(html.split("<tfoot>")[1]).not.toContain('class="annual-status');
+  expect(data).toEqual(before);
+});
+
+test("S35-T02：当月集計の11金額列をカードと揃え、税込金額と全社合計を保持する", () => {
+  const data = monthSummary([c]),
+    before = structuredClone(data);
+  const html = render(MonthlySummary, { data, year: 2026, month: 11 });
+  const headings = [...html.matchAll(/<th scope="col">(.*?)<\/th>/g)].map(
+    (m) => m[1],
+  );
+  expect(headings).toEqual([
+    "会社名",
+    "ステータス",
+    "請求額",
+    "源泉徴収",
+    "小計",
+    "調整額",
+    "値引き",
+    "税込金額",
+    "消費税（10%）",
+    "税抜合計",
+    "立替経費",
+    "交通費",
+    "報酬額",
+  ]);
+  const footer = html.split("<tfoot>")[1];
+  expect(
+    [...footer.matchAll(/<td data-amount-key="[^"]+">(.*?)<\/td>/g)].map(
+      (m) => m[1],
+    ),
+  ).toEqual([
+    "¥1,069",
+    "¥10",
+    "¥1,079",
+    "¥0",
+    "-¥22",
+    "¥1,101",
+    "¥100",
+    "¥1,001",
+    "¥0",
+    "¥0",
+    "¥1,001",
+  ]);
+  expect(data).toEqual(before);
 });

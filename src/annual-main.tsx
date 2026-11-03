@@ -84,7 +84,11 @@ function AnnualApp() {
             {["請求前", "請求済", "入金済み"].map((status) => (
               <span key={status}>
                 <StatusIcon status={status} />
-                {status === "請求済" ? "請求済・未入金" : status}
+                {status === "請求済"
+                  ? "請求済・未入金"
+                  : status === "請求前"
+                    ? "未請求"
+                    : status}
               </span>
             ))}
           </div>

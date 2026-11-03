@@ -26,7 +26,7 @@ export function StatusIcon({ status }: { status: string }) {
       ? status
       : status === "請求済"
         ? "請求済・未入金"
-        : "請求前";
+        : "未請求";
   return (
     <span
       role="img"
@@ -34,7 +34,7 @@ export function StatusIcon({ status }: { status: string }) {
       title={label}
       className={`annual-status ${status === "入金済み" ? "paid" : status === "請求済" ? "invoiced" : "draft"}`}
     >
-      {status === "入金済み" ? "✓" : status === "請求済" ? "▤" : "○"}
+      {status === "入金済み" ? "済" : status === "請求済" ? "待" : "未"}
     </span>
   );
 }

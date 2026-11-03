@@ -153,17 +153,22 @@ test("S29-T03：非表示会社の税・値引き・調整・源泉を含め全�
   const html = render(companies);
   expect(visibleNames(html)).toEqual(["架空会社表示", "全社合計"]);
   const footer = html.match(/<tfoot>(.*?)<\/tfoot>/)[1];
-  expect([...footer.matchAll(/<td>(.*?)<\/td>/g)].map((m) => m[1])).toEqual([
-    "¥1,100",
-    "¥110",
-    "¥220",
-    "¥1,391",
-    "¥139",
-    "-¥22", // S35: 控除を表す表示。計算値は正の値引き額のまま。
-    "-¥1",
-    "¥1,507",
-    "¥1,407",
+  expect(
+    [...footer.matchAll(/<td data-amount-key="[^"]+">(.*?)<\/td>/g)].map(
+      (m) => m[1],
+    ),
+  ).toEqual([
     "¥100",
+    "¥1,407",
+    "¥1,507",
+    "-¥1",
+    "-¥22",
+    "¥1,530",
+    "¥139",
+    "¥1,391",
+    "¥220",
+    "¥110",
+    "¥1,100",
   ]);
 });
 

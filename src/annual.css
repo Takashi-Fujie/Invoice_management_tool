@@ -120,15 +120,27 @@
   color: var(--green);
   text-decoration: underline;
 }
-#app .status-icon {
+#app .annual-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 19px;
+  height: 19px;
+  border-radius: 4px;
+  color: var(--sub);
+  background: var(--surface-muted);
   font-size: 10px;
-  color: var(--muted);
+  font-weight: 650;
+  line-height: 1;
 }
-#app .status-icon.invoiced {
+#app .annual-status.invoiced {
   color: var(--blue);
+  background: var(--blue-soft);
 }
-#app .status-icon.paid {
+#app .annual-status.paid {
   color: var(--green);
+  background: var(--green-soft);
 }
 #app .annual-table .year-total {
   color: var(--green);
@@ -181,7 +193,7 @@
   flex-wrap: wrap;
   gap: 14px;
   color: var(--sub);
-  font-size: 10px;
+  font-size: 11px;
 }
 #app .annual-legend > span {
   display: inline-flex;

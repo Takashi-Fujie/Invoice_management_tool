@@ -1,5 +1,5 @@
 import React from "react";
-import { detailMoney } from "./presentation.mjs";
+import { detailMoney, amountValue, summaryDetails } from "./presentation.mjs";
 
 type Amount = number | null;
 type SummaryRow = {
@@ -17,18 +17,7 @@ type SummaryRow = {
   discount: Amount;
   adjustment: Amount;
 };
-const columns = [
-  ["fee", "報酬額"],
-  ["travel", "交通費"],
-  ["expense", "立替経費"],
-  ["net", "税抜合計"],
-  ["tax", "消費税"],
-  ["discount", "値引き"],
-  ["adjustment", "調整額"],
-  ["gross", "小計"],
-  ["withheld", "源泉徴収額"],
-  ["invoice", "請求額"],
-] as const;
+const columns = [["invoice", "請求額"], ...summaryDetails];
 function SummaryLine({ row }: { row: SummaryRow }) {
   return (
     <tr aria-label={`${row.name}の月次集計`}>
@@ -39,7 +28,9 @@ function SummaryLine({ row }: { row: SummaryRow }) {
         {row.status}
       </td>
       {columns.map(([key]) => (
-        <td key={key}>{detailMoney(key, row[key], true)}</td>
+        <td key={key} data-amount-key={key}>
+          {detailMoney(key, amountValue(row, key), true)}
+        </td>
       ))}
     </tr>
   );
