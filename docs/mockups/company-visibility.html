@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>月別の会社表示・追加モック｜請求管理ツール</title>
+</head>
+<body style="margin:0">
+<div id="invoice-companies">
+ <header><strong>請求管理ツール</strong><span>月別の会社表示・追加の操作モック</span></header>
+ <main><div class="page-heading"><h1>月次入力</h1><div class="period"><button id="mc-prev" type="button" aria-label="前の月へ">‹ 前月</button><strong id="mc-period"></strong><button id="mc-next" type="button" aria-label="次の月へ">翌月 ›</button><span>すべての会社で共通の対象期間</span></div><button id="mc-add-company" type="button" class="primary">会社の表示・追加</button></div>
+ <div class="status-legend" aria-label="カードの状態"><span>未請求：通常</span><span class="legend-invoiced">請求済み：青</span><span class="legend-paid">入金済み：グレー</span></div>
+ <p class="note copy-guide">明細のない月は全社非表示から始まります。「会社の表示・追加」で会社を選ぶか、前月の表示設定を引き継いでください。</p>
+ <div id="mc-list"></div>
+ <section id="mc-summary" class="monthly-summary" aria-label="当月の会社別集計"></section>
+ <p class="note">税込／税抜の入力はそのまま、まず税込へ換算します。同じ率の対象報酬を会社・請求月で合算し、税込額から値引きします。値引き額の円未満は切り捨て。交通費は対象外です。</p>
+ <p class="note">税率は10%。報酬額・交通費は入力額の合計です。消費税は会社・月ごとに税込／税抜別に合算後、1円未満を切り捨てます。値引き中の税抜合計・消費税は値引前の内訳です。税込換算中の端数は値引き額を求めるまで丸めません。時間は小数入力（1.5＝1時間30分）。時給の報酬額は自動計算・1円未満切り上げ、案件単価・交通費では時間・単価を使わず、金額を手入力します。</p>
+ <p class="note">源泉徴収額はマネーフォワードで計算し、会社ごとに手入力します。報酬明細のチェックは対象の確認用です。交通費は対象外。チェックや報酬額を変えても、手入力の源泉額は変わりません。</p>
+ <p class="note">架空データのみ · 保存はこの画面内だけです。再読み込みすると初期状態に戻ります。</p></main>
+ <div class="save-bar"><span id="mc-save-status" class="note" role="status" aria-live="polite"></span><button id="mc-save" type="button" class="primary" disabled>変更を保存</button></div>
+ <dialog id="mc-dialog" aria-labelledby="mc-title">
+  <div class="manager-heading"><h2 id="mc-title">会社の表示・追加</h2><span id="mc-manager-period" class="note"></span></div>
+  <p class="note">この月に表示する会社を選んでください。入力のある会社は非表示にできません。</p>
+  <button id="mc-copy-visibility" type="button">前月やりとりのあった会社を表示</button>
+  <p class="note">前月の表示・非表示だけをコピーします。明細や金額はコピーしません。</p>
+  <p id="mc-copy-result" class="manager-result" role="status" aria-live="polite"></p>
+  <div class="manager-list-heading"><span>会社名</span><span>この月に表示</span></div>
+  <div id="mc-company-choices" class="manager-list"></div>
+  <div class="manager-add"><label for="mc-name">新しい会社を追加</label><div class="manager-add-fields"><input id="mc-name" maxlength="80" placeholder="会社名" aria-label="新しい会社名"><button id="mc-confirm" type="button">追加</button></div><p id="mc-manager-error" role="alert"></p></div>
+  <p class="note">「反映する」の後、画面下の「変更を保存」で保存します。</p>
+  <div class="actions manager-actions"><button id="mc-cancel" type="button">キャンセル</button><button id="mc-apply" type="button" class="primary">反映する</button></div>
+ </dialog>
+ <dialog id="mc-switch-dialog" aria-labelledby="mc-switch-title"><h2 id="mc-switch-title">未保存の変更があります</h2><p>この月の入力を保存してから切り替えますか？</p><p id="mc-switch-error" role="alert"></p><div class="actions"><button id="mc-switch-cancel" type="button">切替を中止</button><button id="mc-switch-discard" type="button">破棄して切替</button><button id="mc-switch-save" type="button" class="primary">保存して切替</button></div></dialog>
+</div>
+<style>
+#invoice-companies{--bg:light-dark(#f5f6f8,#171c24);--surface:light-dark(#fff,#222a35);--text:light-dark(#263342,#edf1f6);--sub:light-dark(#637080,#b1becd);--line:light-dark(#dce1e7,#414e5e);--accent:light-dark(#bc5421,#efb28d);--on:light-dark(#fff,#24170f);color-scheme:light dark;background:var(--bg);color:var(--text);font:13px/1.25 system-ui,sans-serif;height:100dvh;display:flex;flex-direction:column}
+#invoice-companies *{box-sizing:border-box}
+#invoice-companies header{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 12px;background:var(--surface);border-bottom:1px solid var(--line);font-size:12px}
+#invoice-companies main{flex:1;min-height:0;overflow-y:auto;width:100%;padding:6px 12px 12px}
+#invoice-companies .page-heading{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:3px}
+#invoice-companies h1{font-size:18px;font-weight:500;margin:0}
+#invoice-companies h2{font-size:13px;font-weight:600;margin:0}
+#invoice-companies .period{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+#invoice-companies .period span,#invoice-companies header span,#invoice-companies .note{color:var(--sub);font-size:12px}
+#invoice-companies .actions{display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin:6px 0}
+#invoice-companies button{font:inherit;min-height:25px;padding:3px 8px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--text);cursor:pointer}
+#invoice-companies button:disabled{opacity:.45;cursor:default}
+#invoice-companies button.primary{background:var(--accent);border-color:var(--accent);color:var(--on)}
+#invoice-companies section{background:var(--surface);border:1px solid var(--line);border-radius:4px;margin:4px 0;padding:0;overflow:hidden}
+#invoice-companies .company-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:4px 8px;border-bottom:1px solid var(--line)}
+#invoice-companies .company-title{display:flex;align-items:center;gap:7px;min-width:0}
+#invoice-companies .company-title h2{overflow-wrap:anywhere}
+#invoice-companies .company-head strong{font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+#invoice-companies .company-head strong.with-travel{white-space:normal;overflow-wrap:anywhere;max-width:100%}
+#invoice-companies .discount-summary{font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums}
+#invoice-companies .tax-summary{font-size:12px;color:var(--sub);font-variant-numeric:tabular-nums}
+#invoice-companies .withholding-total{display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}
+#invoice-companies .withholding-total input:not([type=checkbox]){width:90px}
+#invoice-companies .net-summary{font-weight:600;font-variant-numeric:tabular-nums}
+#invoice-companies .withholding-cell{text-align:center}
+#invoice-companies .withholding-cell input{vertical-align:middle}
+#invoice-companies .checks{display:flex;gap:12px;align-items:center;margin-left:auto}
+#invoice-companies .checks label{display:flex;gap:4px;align-items:center;white-space:nowrap;font-size:12px}
+#invoice-companies input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;margin:0}
+#invoice-companies .table-scroll{overflow-x:auto}
+#invoice-companies table{width:100%;min-width:1120px;table-layout:fixed;border-collapse:collapse}
+#invoice-companies th{font-size:11px;font-weight:500;text-align:left;padding:3px 6px;background:var(--bg);border-bottom:1px solid var(--line);white-space:nowrap}
+#invoice-companies th:first-child{width:28px;text-align:center}
+#invoice-companies th:nth-child(2){width:auto}
+#invoice-companies th:nth-child(3){width:100px}
+#invoice-companies th:nth-child(4){width:74px;text-align:right}
+#invoice-companies th:nth-child(5){width:110px;text-align:right}
+#invoice-companies th:nth-child(6){width:78px}
+#invoice-companies th:nth-child(7){width:130px;text-align:right}
+#invoice-companies th:nth-child(8){width:80px}
+#invoice-companies th:nth-child(9){width:90px;text-align:right}
+#invoice-companies th:nth-child(10){width:70px;text-align:center}
+#invoice-companies td{padding:1px 3px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);vertical-align:middle}
+#invoice-companies tbody tr:last-child td{border-bottom:0}
+#invoice-companies td:last-child{border-right:0}
+#invoice-companies .row-number,#invoice-companies .unused-time{text-align:center;color:var(--sub);font-size:12px}
+#invoice-companies input:not([type=checkbox]),#invoice-companies select{display:block;width:100%;min-width:0;height:22px;font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:2px;padding:1px 4px}
+#invoice-companies input[inputmode=numeric],#invoice-companies input[inputmode=decimal]{text-align:right;font-variant-numeric:tabular-nums}
+#invoice-companies .row input[readonly]{background:var(--bg);cursor:default}
+#invoice-companies .row input:disabled,#invoice-companies .row select:disabled{opacity:1;color:inherit;background:transparent;border-color:transparent}
+#invoice-companies section>button{margin:2px 6px;font-size:11px;min-height:22px;padding:2px 6px}
+#invoice-companies .copy-actions{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;padding:4px 6px}
+#invoice-companies .copy-actions p{margin:0;font-size:11px;color:var(--sub);overflow-wrap:anywhere}
+#invoice-companies .copy-actions button{min-height:24px;font-size:12px}
+#invoice-companies .invoice-note{margin:5px 10px;font-size:12px;color:var(--sub)}
+#invoice-companies .status-label{font-size:11px;border-radius:3px;padding:2px 6px;background:var(--bg);white-space:nowrap}
+#invoice-companies .is-invoiced{background:light-dark(#edf5ff,#1e3046);border-color:light-dark(#c0d5ef,#405c7f)}
+#invoice-companies .is-paid{background:light-dark(#eef0f2,#282d33);border-color:light-dark(#d1d6dc,#47515d);color:light-dark(#53606e,#c5cdd6)}
+#invoice-companies .is-invoiced .status-label{background:light-dark(#d9eaff,#304c70);color:light-dark(#245984,#d5e8ff)}
+#invoice-companies .is-paid .status-label{background:light-dark(#dce0e5,#414a55);color:light-dark(#46515f,#dce3eb)}
+#invoice-companies .status-legend{display:flex;align-items:center;flex-wrap:wrap;gap:12px;color:var(--sub);font-size:11px;margin:2px 0}
+#invoice-companies .legend-invoiced{color:light-dark(#245984,#b6d7ff)}
+#invoice-companies .legend-paid{color:var(--sub)}
+#invoice-companies main>.note{margin:3px 0;font-size:11px}
+#invoice-companies .page-heading>button{margin-left:auto}
+#invoice-companies .save-bar{flex-shrink:0;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;min-height:38px;padding:4px 12px;padding-bottom:max(4px,env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line)}
+#invoice-companies dialog{color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:20px;width:min(420px,calc(100% - 24px))}
+#invoice-companies dialog label{display:block;margin:14px 0}
+#invoice-companies dialog::backdrop{background:rgb(12 22 35 / .35)}
+#invoice-companies button:focus-visible,#invoice-companies input:focus-visible,#invoice-companies select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#invoice-companies .monthly-summary{margin:12px 0 8px}
+#invoice-companies .monthly-summary .summary-heading{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 16px;padding:8px 10px}
+#invoice-companies .monthly-summary .summary-heading p{margin:0;font-size:11px;color:var(--sub)}
+#invoice-companies .monthly-summary .table-scroll{overflow-x:auto;padding-bottom:0}
+#invoice-companies .monthly-summary table{min-width:1200px;table-layout:auto}
+#invoice-companies .monthly-summary table th,#invoice-companies .monthly-summary table td{width:auto;text-align:right;padding:7px 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
+#invoice-companies .monthly-summary table th:first-child{width:20%;min-width:180px;text-align:left}
+#invoice-companies .monthly-summary tbody th{background:transparent;font-size:12px;font-weight:500}
+#invoice-companies .monthly-summary tbody tr:last-child th{border-bottom:0}
+#invoice-companies .monthly-summary tfoot th,#invoice-companies .monthly-summary tfoot td{background:var(--bg);border-top:2px solid var(--line);border-bottom:0;font-weight:600}
+#invoice-companies .monthly-summary table td:nth-child(3){font-weight:600}
+#invoice-companies .monthly-summary table .summary-status{font-size:12px;text-align:center;font-weight:500}
+#invoice-companies .monthly-summary .status-invoiced{color:light-dark(#245984,#b6d7ff)}
+#invoice-companies .monthly-summary .status-paid{color:var(--sub)}
+@media(max-width:1150px){#invoice-companies .table-scroll{padding-bottom:14px}}
+@media(max-width:600px){#invoice-companies main{padding:8px 8px 16px}#invoice-companies header{padding:7px 10px}#invoice-companies .company-head{gap:7px 10px}#invoice-companies .company-head strong{font-size:13px}#invoice-companies .company-head strong.with-travel{white-space:normal;overflow-wrap:anywhere;max-width:100%}
+#invoice-companies .checks{margin-left:auto}#invoice-companies .period span{display:none}#invoice-companies input:not([type=checkbox]),#invoice-companies select{font-size:16px;height:28px}#invoice-companies .save-bar{padding-left:10px;padding-right:10px}}
+
+#invoice-companies #mc-dialog{width:min(560px,calc(100% - 24px));max-height:calc(100dvh - 32px);overflow:auto;padding:18px}
+#invoice-companies .manager-heading{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
+#invoice-companies .manager-heading h2{font-size:16px}
+#invoice-companies #mc-dialog p.note{line-height:1.6;margin:10px 0}
+#invoice-companies #mc-copy-visibility{min-height:34px;max-width:100%;white-space:normal;text-align:left}
+#invoice-companies .manager-list-heading{display:flex;justify-content:space-between;gap:12px;font-size:11px;color:var(--sub);padding:8px 10px;background:var(--bg);border:1px solid var(--line);border-bottom:0;border-radius:4px 4px 0 0}
+#invoice-companies .manager-list{max-height:240px;overflow-y:auto;border:1px solid var(--line);border-radius:0 0 4px 4px}
+#invoice-companies .manager-list .manager-company{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;padding:12px 10px;border-bottom:1px solid var(--line);cursor:pointer}
+#invoice-companies .manager-list .manager-company:last-child{border-bottom:0}
+#invoice-companies .manager-company-name{overflow-wrap:anywhere;min-width:0;display:flex;flex-direction:column;gap:4px}
+#invoice-companies .manager-company-reason{font-size:11px;color:var(--sub)}
+#invoice-companies .manager-company input{flex-shrink:0;margin-right:22px;width:17px;height:17px}
+#invoice-companies .manager-add{padding-top:12px;margin-top:14px;border-top:1px solid var(--line)}
+#invoice-companies #mc-dialog .manager-add label{margin:0 0 8px;font-size:12px;font-weight:600}
+#invoice-companies .manager-add-fields{display:flex;gap:8px;align-items:center}
+#invoice-companies .manager-add-fields input:not([type=checkbox]){flex:1;height:32px;font-size:14px}
+#invoice-companies .manager-add-fields button{min-height:32px;flex-shrink:0}
+#invoice-companies .manager-result,#invoice-companies #mc-manager-error{font-size:12px;line-height:1.6;margin:8px 0;overflow-wrap:anywhere}
+#invoice-companies #mc-manager-error{color:light-dark(#a51e1e,#ffb8b8)}
+#invoice-companies .manager-actions{justify-content:flex-end;margin-bottom:0}
+#invoice-companies .manager-actions button{min-height:34px;padding:6px 12px}
+#invoice-companies .month-empty{padding:28px 14px;text-align:center;line-height:1.8;color:var(--sub);border:1px dashed var(--line);border-radius:4px;margin:12px 0;background:var(--surface)}
+</style>
+<script>
+(()=>{
+ const root=document.getElementById('invoice-companies'),list=root.querySelector('#mc-list'),dialog=root.querySelector('#mc-dialog'),name=root.querySelector('#mc-name');
+ const now=new Date();let year=now.getFullYear(),month=now.getMonth()+1;
+ const discountRateForMonth=()=>year<2026||(year===2026&&month<10)?'1.3':'2';
+ let defaultDiscountRate=discountRateForMonth();
+ const emptyRow=()=>({text:'',amount:'',type:'per_item',rate:'',hours:'',priceMode:'exclusive',feePriceMode:'exclusive',discountEnabled:false,discountRate:defaultDiscountRate});
+ const companies=[{id:'blue',name:'青葉編集室（架空）',rows:[{text:'採用インタビューの原稿作成',amount:'50000',type:'per_item',rate:'',hours:'',priceMode:'inclusive',feePriceMode:'inclusive'}],invoiced:false,paid:false},{id:'green',name:'こもれび企画（架空）',rows:[{text:'広報記事の編集',amount:'24000',type:'hourly',rate:'3000',hours:'8',priceMode:'inclusive',feePriceMode:'inclusive'}],invoiced:false,paid:false}];
+ companies.push({id:'quiet',name:'みなと制作（架空）',rows:[emptyRow()],withholdingAmount:'0',invoiced:false,paid:false,visible:false});
+ const clone=value=>JSON.parse(JSON.stringify(value));
+ const periodKey=(y=year,m=month)=>`${y}-${String(m).padStart(2,'0')}`;
+ const adjacent=delta=>{const date=new Date(year,month-1+delta,1);return {year:date.getFullYear(),month:date.getMonth()+1};};
+ const registeredCompanies=new Map(companies.map(c=>[c.id,{id:c.id,name:c.name}]));
+ const saved=new Map(),copyMessages=new Map();let baseline='',pendingMonth=null,saveError='',managerDraft=null;
+ const dirty=()=>JSON.stringify(companies)!==baseline;
+ // Conditions changed on an otherwise blank row are also protected from replacement.
+ const emptyInput=r=>!r.text.trim()&&r.amount===''&&r.type==='per_item'&&r.hours===''&&r.rate===''&&!r.discountEnabled&&!r.withholdingEnabled&&r.priceMode==='exclusive'&&(!r.feePriceMode||r.feePriceMode==='exclusive')&&(!r.discountRate||r.discountRate===defaultDiscountRate);
+ const copyBlocked=c=>c.invoiced?'請求済です。コピーするにはチェックを解除してください。':c.rows.some(r=>!emptyInput(r))?'明細が入力済みです。空の月にコピーできます。':'';
+ function refreshSave(){
+  root.querySelector('#mc-save-status').textContent=saveError|| (dirty()?'未保存の変更があります（保存はこの画面内のみ）':'保存済み（この画面内のみ）');
+  root.querySelector('#mc-save').disabled=!dirty();
+  refreshCopy();
+ }
+ // UI references live outside the data so snapshots contain only input values.
+ const copyUI=new Map();
+ function refreshCopy(){for(const c of companies){const ui=copyUI.get(c.id);if(!ui)continue;const blocked=copyBlocked(c);ui.button.disabled=!!blocked;ui.note.textContent=(c.invoiced?blocked:copyMessages.get(c.id)||blocked)||'前月の保存済み報酬明細をコピーします。';}}
+ function copyPrevious(c){
+  if(copyBlocked(c))return;
+  const previous=adjacent(-1),source=(saved.get(periodKey(previous.year,previous.month))||[]).find(item=>item.id===c.id);
+  const rows=(source?.rows||[]).filter(r=>r.type!=='travel'&&r.text.trim());
+  if(!rows.length){copyMessages.set(c.id,`${previous.year}年${previous.month}月にコピーできる報酬明細がありません。`);refreshCopy();return;}
+  c.rows=clone(rows);saveError='';copyMessages.set(c.id,`${previous.year}年${previous.month}月から${rows.length}件コピーしました。内容を確認して保存してください。`);render();
+ }
+ function saveMonth(){
+  const invalid=companies.some(c=>companyTotals(c).invoice===null||c.rows.some(r=>!emptyInput(r)&&(!r.text.trim()||(r.type==='hourly'?r.hours===''||r.rate==='':r.amount===''))));
+  if(invalid){saveError='未保存：各明細の業務内容と金額・時間・単価を確認してください。';refreshSave();return false;}
+  for(const c of companies)registeredCompanies.set(c.id,{id:c.id,name:c.name});
+  saved.set(periodKey(),clone(companies));baseline=JSON.stringify(companies);saveError='';refreshSave();return true;
+ }
+ function openMonth(target){
+  const stored=saved.get(periodKey(target.year,target.month))||[];
+  year=target.year;month=target.month;defaultDiscountRate=discountRateForMonth();
+  const next=[...registeredCompanies.values()].map(c=>clone(stored.find(item=>item.id===c.id)||{id:c.id,name:c.name,rows:[emptyRow()],withholdingAmount:'0',invoiced:false,paid:false,visible:false}));
+  companies.splice(0,companies.length,...next);copyMessages.clear();saveError='';render();baseline=JSON.stringify(companies);refreshSave();
+ }
+ function switchMonth(delta){const target=adjacent(delta);if(dirty()){pendingMonth=target;root.querySelector('#mc-switch-error').textContent='';root.querySelector('#mc-switch-dialog').showModal();}else openMonth(target);}
+ const parseAmount=raw=>{if(raw==='')return 0;const text=String(raw);if(!/^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)$/.test(text))return null;const n=Number(text.replaceAll(',',''));return Number.isSafeInteger(n)&&n<=999999999?n:null;};
+ const displayAmount=raw=>raw===null?'入力を確認':raw===''?'':parseAmount(raw)===null?raw:parseAmount(raw).toLocaleString('ja-JP');
+ const el=(tag,text)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
+ const field=(label,input)=>{const cell=el('td');input.title=label;cell.append(input);return cell;};
+ function hourlyAmount(hours,rate){
+  if(hours===''||rate==='')return '';
+  const decimal=raw=>{const [whole,fraction='']=raw.split('.');return [BigInt(whole+fraction),10n**BigInt(fraction.length)];};
+  const [h,hd]=decimal(hours),[price,pd]=decimal(rate),denominator=hd*pd;
+  const yen=(h*price+denominator-1n)/denominator;
+  return yen>999999999n?null:String(yen);
+ }
+ function bindDecimal(input,r,key,changed=()=>{}){
+  let composing=false;const sync=()=>{if(!/^(?:[0-9]+(?:\.[0-9]*)?)?$/.test(input.value)){input.value=r[key];return;}r[key]=input.value;changed();};
+  input.oncompositionstart=()=>{composing=true;};input.oncompositionend=()=>{composing=false;sync();};
+  input.oninput=e=>{if(!composing&&!e?.isComposing)sync();};input.onchange=()=>{if(!composing)sync();};input.onblur=()=>{composing=false;sync();};
+ }
+ function parseDiscountRate(raw){
+  if(!/^[0-9]+(?:\.[0-9]*)?$/.test(raw))return null;
+  const [whole,fraction='']=raw.split('.'),n=BigInt(whole+fraction),d=10n**BigInt(fraction.length);
+  if(n>100n*d)return null;
+  const trimmed=fraction.replace(/0+$/,'');
+  return {n,d,key:String(BigInt(whole))+(trimmed?'.'+trimmed:'')};
+ }
+ function companyTotals(c){
+  const amounts=c.rows.map(r=>parseAmount(r.type==='hourly'?hourlyAmount(r.hours,r.rate):r.amount));
+  const withheld=parseAmount(c.withholdingAmount??'0');
+  const result={fee:null,travel:null,gross:null,net:null,tax:null,discount:null,withheld:withheld===null?null:BigInt(withheld),invoice:null};
+  if(amounts.includes(null))return {...result,error:'amount'};
+  result.fee=c.rows.reduce((n,r,i)=>n+(r.type==='travel'?0n:BigInt(amounts[i])),0n);
+  result.travel=c.rows.reduce((n,r,i)=>n+(r.type==='travel'?BigInt(amounts[i]):0n),0n);
+  let exclusive=0n,inclusive=0n;
+  c.rows.forEach((r,i)=>{if(r.priceMode==='exclusive')exclusive+=BigInt(amounts[i]);else inclusive+=BigInt(amounts[i]);});
+  const groups=new Map();
+  for(const [i,r] of c.rows.entries()){
+   if(r.type==='travel'||!r.discountEnabled)continue;
+   const rate=parseDiscountRate(r.discountRate);
+   if(!rate)return {...result,error:'discount'};
+   // Keep tenths of a yen until the rate-group discount is rounded down.
+   const group=groups.get(rate.key)??{...rate,grossTenths:0n};group.grossTenths+=BigInt(amounts[i])*(r.priceMode==='exclusive'?11n:10n);groups.set(rate.key,group);
+  }
+  let discount=0n;const breakdown=[];
+  for(const [key,g] of groups){const amount=g.grossTenths*g.n/(g.d*1000n);discount+=amount;breakdown.push(key+'% ¥'+amount.toLocaleString('ja-JP'));}
+  // Round tax per company/month; the all-company summary only adds these results.
+  const addedTax=exclusive/10n,tax=addedTax+inclusive/11n,beforeDiscount=exclusive+inclusive+addedTax,gross=beforeDiscount-discount;
+  return {...result,gross,net:beforeDiscount-tax,tax,discount,beforeDiscount,breakdown,discounted:groups.size>0,invoice:result.withheld===null?null:gross-result.withheld};
+ }
+ function renderSummary(){
+  const summary=root.querySelector('#mc-summary');summary.replaceChildren();
+  const heading=el('div');heading.className='summary-heading';heading.append(el('h2','当月の会社別集計'),el('p',`${year}年${month}月 · 報酬額・交通費は入力額の合計。請求額は源泉控除後の入金予定額、税抜合計・消費税は値引き前です。`));summary.append(heading);
+  const scroll=el('div');scroll.className='table-scroll';scroll.setAttribute('tabindex','0');scroll.setAttribute('aria-label','会社別集計の横スクロール');
+  const table=el('table');table.setAttribute('aria-label','当月の会社別集計');
+  const thead=el('thead'),head=el('tr');
+  for(const label of ['会社名','ステータス','請求額','源泉徴収額','小計','報酬額','交通費','税抜合計','消費税','値引き']){const th=el('th',label);th.setAttribute('scope','col');head.append(th);}thead.append(head);
+  const totals=companies.map(companyTotals),keys=['invoice','withheld','gross','fee','travel','net','tax','discount'];
+  const money=n=>n===null?'入力を確認':(n<0n?'-¥'+(-n).toLocaleString('ja-JP'):'¥'+n.toLocaleString('ja-JP'));
+  const row=(name,t,state='—',tone='')=>{const tr=el('tr');tr.setAttribute('aria-label',`${name}の月次集計`);const title=el('th',name);title.setAttribute('scope','row');const status=el('td',state);status.className='summary-status '+tone;tr.append(title,status);for(const key of keys)tr.append(el('td',money(t[key])));return tr;};
+  const body=el('tbody');companies.forEach((c,i)=>{if(totals[i].invoice!==0n)body.append(row(c.name,totals[i],c.paid?'入金済み':c.invoiced?'請求済':'請求前',c.paid?'status-paid':c.invoiced?'status-invoiced':''));});
+  const total=Object.fromEntries(keys.map(key=>[key,totals.some(t=>t[key]===null)?null:totals.reduce((n,t)=>n+t[key],0n)]));
+  const foot=el('tfoot');foot.append(row('全社合計',total));table.append(thead,body,foot);scroll.append(table);summary.append(scroll);refreshSave();
+ }
+ function render(){root.querySelector('#mc-period').textContent=`${year}年度／${month}月`;list.replaceChildren();copyUI.clear();companies.forEach(c=>{
+  c.withholdingAmount??='0';
+  c.rows.forEach(r=>{r.discountEnabled??=false;r.discountRate??=defaultDiscountRate;r.withholdingEnabled??=false;});
+  if(hiddenReason(c))c.visible=true;
+  if(!c.visible)return;
+  const section=el('section'),head=el('div');section.className=c.paid?'is-paid':c.invoiced?'is-invoiced':'is-unbilled';head.className='company-head';const title=el('div');title.className='company-title';const badge=el('span',c.paid?'入金済み':c.invoiced?'請求済み':'未請求');badge.className='status-label';title.append(badge,el('h2',c.name));head.append(title);const sum=el('strong'),taxSummary=el('span'),discountSummary=el('span');taxSummary.className='tax-summary';discountSummary.className='discount-summary';section.append(head);
+  const withholdingLabel=el('label','源泉徴収額'),withholding=el('input'),net=el('span');withholdingLabel.className='withholding-total';net.className='net-summary';net.setAttribute('aria-label',`${c.name}の請求額`);net.setAttribute('aria-live','polite');
+  withholding.type='text';withholding.inputMode='numeric';withholding.maxLength=9;withholding.value=displayAmount(c.withholdingAmount);withholding.disabled=c.invoiced;withholding.setAttribute('aria-label',`${c.name}の源泉徴収額`);withholdingLabel.append(withholding);
+  const update=()=>{
+   const t=companyTotals(c);sum.className='with-travel';net.textContent='請求額：入力を確認';
+   if(t.error){sum.textContent=t.error==='discount'?'小計：値引き率の入力を確認':'小計：入力を確認';taxSummary.textContent='税額：入力を確認';discountSummary.textContent=t.error==='discount'?'値引き率：入力を確認':'値引き：入力を確認';}
+   else{
+    const yen=n=>n.toLocaleString('ja-JP');
+    sum.textContent='小計 ¥'+yen(t.gross)+' / 報酬額 ¥'+yen(t.fee)+' / 交通費 ¥'+yen(t.travel);
+    if(t.invoice!==null)net.textContent='請求額 ¥'+yen(t.invoice);
+    const prefix=t.discounted?'値引前':'';
+    taxSummary.textContent=prefix+'税抜合計 ¥'+yen(t.beforeDiscount-t.tax)+' / '+prefix+'消費税（10%） ¥'+yen(t.tax);
+    discountSummary.textContent=t.breakdown.length?'値引き（税込・同率合算） '+t.breakdown.join(' / '):'値引き ¥0';
+   }
+   renderSummary();
+  };
+  withholding.onfocus=()=>{withholding.value=c.withholdingAmount;};
+  let withholdingComposing=false;
+  const syncWithholding=()=>{if(c.invoiced){withholding.value=displayAmount(c.withholdingAmount);return;}if(!/^[0-9]*$/.test(withholding.value)||parseAmount(withholding.value)===null){withholding.value=c.withholdingAmount;return;}c.withholdingAmount=withholding.value;update();};
+  withholding.onbeforeinput=e=>{if(!withholdingComposing&&!e.isComposing&&e.data&&!/^[0-9]+$/.test(e.data))e.preventDefault();};
+  withholding.oncompositionstart=()=>{withholdingComposing=true;};withholding.oncompositionend=()=>{withholdingComposing=false;syncWithholding();};
+  withholding.oninput=e=>{if(!withholdingComposing&&!e?.isComposing)syncWithholding();};withholding.onchange=()=>{if(!withholdingComposing)syncWithholding();};
+  withholding.onblur=()=>{withholdingComposing=false;syncWithholding();withholding.value=displayAmount(c.withholdingAmount);};
+  const scroll=el('div');scroll.className='table-scroll';const table=el('table');table.setAttribute('aria-label',`${c.name}の報酬明細`);const thead=el('thead'),heading=el('tr');for(const label of ['No.','業務内容','報酬タイプ','時間（h）','単価（円）','税込／税抜','金額（円）','値引き','値引き率（%）','源泉あり']){const th=el('th',label);th.setAttribute('scope','col');heading.append(th);}thead.append(heading);const tbody=el('tbody');table.append(thead,tbody);scroll.append(table);section.append(scroll);
+  c.rows.forEach((r,i)=>{
+   const row=el('tr');row.className='row';const number=el('td',String(i+1));number.className='row-number';row.append(number);const grid=row;
+   const text=el('input');text.value=r.text;text.setAttribute('aria-label',`${c.name}の${i+1}行目の業務内容`);text.disabled=c.invoiced;text.oninput=()=>{r.text=text.value;copyMessages.delete(c.id);saveError='';refreshSave();};
+   if(r.type==='hourly')r.amount=hourlyAmount(r.hours,r.rate);
+   const amount=el('input');amount.readOnly=r.type==='hourly';amount.type='text';amount.inputMode='numeric';amount.maxLength=11;amount.setAttribute('aria-label',`${c.name}の${i+1}行目の${r.type==='travel'?'交通費':'報酬額'}（円）`);amount.value=displayAmount(r.amount);amount.disabled=c.invoiced;
+   amount.onfocus=()=>{if(r.type==='hourly')return;const n=parseAmount(r.amount);amount.value=r.amount===''?'':n===null?r.amount:String(n);};
+   let composing=false;
+   const sync=()=>{if(r.type==='hourly'||c.invoiced){amount.value=displayAmount(r.amount);return;}if(!/^[0-9]*$/.test(amount.value)||parseAmount(amount.value)===null){amount.value=r.amount;return;}r.amount=amount.value;update();};
+   amount.onbeforeinput=e=>{if(r.type==='hourly'){e.preventDefault();return;}if(!composing&&!e.isComposing&&e.data&&!/^[0-9]+$/.test(e.data))e.preventDefault();};
+   amount.oncompositionstart=()=>{composing=true;};amount.oncompositionend=()=>{composing=false;sync();};
+   amount.oninput=e=>{if(!composing&&!e?.isComposing)sync();};amount.onchange=()=>{if(!composing)sync();};
+   amount.onblur=()=>{composing=false;sync();amount.value=displayAmount(r.amount);};
+   const refresh=()=>{if(r.type==='hourly'){r.amount=hourlyAmount(r.hours,r.rate);amount.value=displayAmount(r.amount);}update();};
+   row.append(field('業務内容',text));
+   const type=el('select');type.setAttribute('aria-label',`${c.name}の${i+1}行目の報酬タイプ`);type.disabled=c.invoiced;
+   for(const [value,label] of [['hourly','時給'],['per_item','案件単価'],['travel','交通費']]){const option=el('option',label);option.value=value;type.append(option);}type.value=r.type;type.onchange=()=>{if(r.type!=='hourly')r.manualAmount=r.amount;if(type.value!=='hourly')r.amount=r.manualAmount??r.amount;r[r.type==='travel'?'travelPriceMode':'feePriceMode']=r.priceMode;r.type=type.value;r.priceMode=r[r.type==='travel'?'travelPriceMode':'feePriceMode']??(r.type==='travel'?'inclusive':'exclusive');render();};grid.append(field('報酬タイプ',type));
+   if(r.type==='hourly'){
+    const hours=el('input');hours.type='text';hours.inputMode='decimal';hours.value=r.hours;hours.placeholder='例：1.5';hours.disabled=c.invoiced;hours.setAttribute('aria-label',`${c.name}の${i+1}行目の時間`);bindDecimal(hours,r,'hours',refresh);grid.append(field('時間（小数）',hours));
+   }else{const unused=el('td','—');unused.className='unused-time';unused.setAttribute('aria-label',`${r.type==='travel'?'交通費':'案件単価'}では時間を使用しません`);grid.append(unused);}
+   if(r.type==='hourly'){
+    const rate=el('input');rate.type='text';rate.inputMode='decimal';rate.value=r.rate;rate.placeholder='例：3000';rate.disabled=c.invoiced;rate.setAttribute('aria-label',`${c.name}の${i+1}行目の単価（円）`);bindDecimal(rate,r,'rate',refresh);grid.append(field('単価（円／時間）',rate));
+   }else{const unused=el('td','—');unused.className='unused-time';unused.setAttribute('aria-label',`${c.name}の${i+1}行目の単価は使用しません`);grid.append(unused);}
+   const priceMode=el('select');priceMode.setAttribute('aria-label',`${c.name}の${i+1}行目の税込／税抜`);priceMode.disabled=c.invoiced;
+   for(const [value,label] of [['exclusive','税抜'],['inclusive','税込']]){const option=el('option',label);option.value=value;priceMode.append(option);}
+   priceMode.value=r.priceMode;priceMode.onchange=()=>{if(c.invoiced||!['exclusive','inclusive'].includes(priceMode.value)){priceMode.value=r.priceMode;return;}r.priceMode=priceMode.value;r[r.type==='travel'?'travelPriceMode':'feePriceMode']=r.priceMode;update();};grid.append(field('税込／税抜（税率10%）',priceMode));
+   grid.append(field(r.type==='hourly'?'報酬額（円・自動計算）':r.type==='travel'?'交通費（円・手入力）':'報酬額（円・手入力）',amount));
+   if(r.type==='travel'){
+    const excluded=el('td','対象外');excluded.className='unused-time';excluded.setAttribute('colspan','2');grid.append(excluded);
+   }else{
+    const discount=el('select');discount.setAttribute('aria-label',`${c.name}の${i+1}行目の値引き`);discount.disabled=c.invoiced;
+    for(const [value,label] of [['none','なし'],['apply','あり']]){const option=el('option',label);option.value=value;discount.append(option);}
+    discount.value=r.discountEnabled?'apply':'none';discount.onchange=()=>{if(c.invoiced||!['none','apply'].includes(discount.value)){discount.value=r.discountEnabled?'apply':'none';return;}r.discountEnabled=discount.value==='apply';render();};grid.append(field('報酬の値引き',discount));
+    const discountRate=el('input');discountRate.type='text';discountRate.inputMode='decimal';discountRate.value=r.discountEnabled?r.discountRate:'-';discountRate.disabled=c.invoiced||!r.discountEnabled;discountRate.setAttribute('aria-label',`${c.name}の${i+1}行目の値引き率（%）`);
+    let rateComposing=false;const syncRate=()=>{if(c.invoiced||!r.discountEnabled||discountRate.value!==''&&!parseDiscountRate(discountRate.value)){discountRate.value=r.discountEnabled?r.discountRate:'-';return;}r.discountRate=discountRate.value;update();};
+    discountRate.oncompositionstart=()=>{rateComposing=true;};discountRate.oncompositionend=()=>{rateComposing=false;syncRate();};discountRate.oninput=e=>{if(!rateComposing&&!e?.isComposing)syncRate();};discountRate.onchange=()=>{if(!rateComposing)syncRate();};discountRate.onblur=()=>{rateComposing=false;syncRate();};grid.append(field('値引き率（%・同率の報酬を合算）',discountRate));
+   }
+   if(r.type==='travel'){
+    const excluded=el('td','対象外');excluded.className='unused-time';grid.append(excluded);
+   }else{
+    const check=el('input');check.type='checkbox';check.checked=r.withholdingEnabled;check.disabled=c.invoiced;check.setAttribute('aria-label',`${c.name}の${i+1}行目の源泉徴収あり`);
+    check.onchange=()=>{if(c.invoiced){check.checked=r.withholdingEnabled;return;}r.withholdingEnabled=check.checked;refreshSave();};
+    const cell=field('源泉徴収あり（MFで計算）',check);cell.className='withholding-cell';grid.append(cell);
+   }
+   tbody.append(row);
+  });
+  const copyActions=el('div'),copy=el('button','前月からコピー'),copyNote=el('p');copyActions.className='copy-actions';copy.type='button';copy.setAttribute('aria-label',`${c.name}の前月からコピー`);copyNote.setAttribute('aria-label',`${c.name}のコピー結果`);copyNote.setAttribute('role','status');copyNote.setAttribute('aria-live','polite');copyUI.set(c.id,{button:copy,note:copyNote});copy.onclick=()=>copyPrevious(c);copyActions.append(copy,copyNote);section.append(copyActions);
+  if(!c.invoiced){const add=el('button','＋ 報酬明細を追加');add.type='button';add.className='primary';add.disabled=c.invoiced;add.onclick=()=>{c.rows.push(emptyRow());render();};section.append(add);}
+  const checks=el('div');checks.className='checks';for(const [key,label] of [['invoiced','請求済'],['paid','入金済']]){const l=el('label'),input=el('input');input.type='checkbox';input.checked=c[key];input.disabled=key==='invoiced'?c.paid:!c.invoiced;input.setAttribute('aria-label',`${c.name}の${label}`);input.onchange=()=>{c[key]=input.checked;render();};l.append(input,el('span',label));checks.append(l);}head.append(checks,net,withholdingLabel,sum,taxSummary,discountSummary);if(c.invoiced){const note=el('p','編集する場合は、入金済→請求済の順にチェックを外してください。');note.className='invoice-note';section.append(note);}update();list.append(section);
+ });if(!list.children.length){const empty=el('p','この月に表示する会社はありません。「会社の表示・追加」から選んでください。');empty.className='month-empty';list.append(empty);}renderSummary();refreshSave();}
+ function hiddenReason(c){
+  if(c.rows.some(r=>!emptyInput(r)))return '明細あり';
+  if(c.paid)return '入金済';
+  if(c.invoiced)return '請求済';
+  if(parseAmount(c.withholdingAmount??'0')!==0)return '源泉額あり';
+  return '';
+ }
+ function renderChoices(){
+  const choices=root.querySelector('#mc-company-choices');choices.replaceChildren();
+  for(const c of managerDraft){
+   const reason=hiddenReason(c);if(reason)c.visible=true;
+   const label=el('label'),title=el('span'),check=el('input');label.className='manager-company';title.className='manager-company-name';title.append(el('span',c.name));
+   if(reason){const note=el('span',reason+'・非表示にできません');note.className='manager-company-reason';title.append(note);}
+   check.type='checkbox';check.checked=!!c.visible;check.disabled=!!reason;check.setAttribute('aria-label',`${c.name}のこの月に表示`);
+   check.onchange=()=>{c.visible=hiddenReason(c)?true:check.checked;check.checked=c.visible;};label.append(title,check);choices.append(label);
+  }
+ }
+ function closeManager(){managerDraft=null;dialog.close();}
+ root.querySelector('#mc-add-company').onclick=()=>{
+  managerDraft=clone(companies);name.value='';root.querySelector('#mc-manager-error').textContent='';root.querySelector('#mc-copy-result').textContent='';
+  root.querySelector('#mc-manager-period').textContent=`${year}年${month}月`;
+  root.querySelector('#mc-copy-visibility').disabled=year===1&&month===1;
+  renderChoices();dialog.showModal();
+ };
+ root.querySelector('#mc-cancel').onclick=closeManager;dialog.oncancel=e=>{e.preventDefault();closeManager();};
+ root.querySelector('#mc-confirm').onclick=()=>{
+  if(!managerDraft)return;
+  if(!name.value.trim()||name.value.length>80){root.querySelector('#mc-manager-error').textContent='会社名を1〜80文字で入力してください。';name.focus();return;}
+  managerDraft.push({id:`company-${managerDraft.length}`,name:name.value.trim(),rows:[emptyRow()],withholdingAmount:'0',invoiced:false,paid:false,visible:true});
+  name.value='';root.querySelector('#mc-manager-error').textContent='';renderChoices();name.focus();
+ };
+ root.querySelector('#mc-apply').onclick=()=>{if(!managerDraft)return;companies.splice(0,companies.length,...managerDraft);closeManager();saveError='';render();};
+ root.querySelector('#mc-copy-visibility').onclick=()=>{
+  if(!managerDraft||year===1&&month===1)return;
+  const previous=adjacent(-1),source=saved.get(periodKey(previous.year,previous.month))||[];
+  for(const c of managerDraft){const from=source.find(item=>item.id===c.id);c.visible=!!hiddenReason(c)||(from?from.visible??!!hiddenReason(from):false);}
+  renderChoices();const count=managerDraft.filter(c=>c.visible).length;
+  root.querySelector('#mc-copy-result').textContent=`${previous.year}年${previous.month}月の表示設定をコピーしました。`+(count?`この月に${count}社を表示します。`:'表示する会社はありません。');
+ };
+
+ root.querySelector('#mc-prev').onclick=()=>switchMonth(-1);root.querySelector('#mc-next').onclick=()=>switchMonth(1);root.querySelector('#mc-save').onclick=()=>saveMonth();
+ const switchDialog=root.querySelector('#mc-switch-dialog');
+ const closeSwitch=()=>{pendingMonth=null;switchDialog.close();};
+ root.querySelector('#mc-switch-cancel').onclick=closeSwitch;switchDialog.oncancel=e=>{e.preventDefault();closeSwitch();};
+ root.querySelector('#mc-switch-save').onclick=()=>{if(!pendingMonth)return;if(!saveMonth()){root.querySelector('#mc-switch-error').textContent=saveError+' 切替を中止して訂正してください。';return;}const target=pendingMonth;closeSwitch();openMonth(target);};
+ root.querySelector('#mc-switch-discard').onclick=()=>{if(!pendingMonth)return;const target=pendingMonth;closeSwitch();openMonth(target);};
+ const previous=adjacent(-1),source=clone(companies);
+ for(const c of source){c.visible=c.id!=='quiet';c.withholdingAmount=c.id==='blue'?'5105':'0';c.invoiced=c.id==='blue';c.paid=c.id==='blue';c.rows.forEach(r=>{r.discountEnabled??=false;r.discountRate=previous.year<2026||(previous.year===2026&&previous.month<10)?'1.3':'2';r.withholdingEnabled??=false;});}
+ saved.set(periodKey(previous.year,previous.month),source);
+ for(const c of companies){c.rows=[emptyRow()];c.withholdingAmount='0';c.invoiced=false;c.paid=false;c.visible=false;}
+ render();baseline=JSON.stringify(companies);refreshSave();
+})();
+</script>
+</body>
+</html>

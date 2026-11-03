@@ -1,0 +1,122 @@
+<div id="invoice-monthly-mock">
+  <header class="mm-header">
+    <div class="mm-brand"><span class="mm-logo" aria-hidden="true">請</span><span>請求管理ツール</span></div>
+    <span class="mm-preview">画面案 · MVP 1</span>
+  </header>
+  <main class="mm-main">
+    <div class="mm-titlebar"><div><div class="mm-eyebrow">MONTHLY WORKSPACE</div><h1>月次入力</h1><p>この月の仕事と報酬を、会社ごとにまとめます。</p></div></div>
+    <section class="mm-period" aria-label="対象期間">
+      <div class="mm-period-fields"><label>年度<input id="mm-year" type="text" inputmode="numeric" pattern="[0-9]{1,4}" maxlength="4" aria-label="対象年度"></label><label>月<select id="mm-month" aria-label="対象月"></select></label><div class="mm-month-arrows"><button type="button" id="mm-prev" aria-label="前月へ">←</button><button type="button" id="mm-next" aria-label="翌月へ">→</button></div></div>
+      <div class="mm-period-caption"><span class="mm-dot" aria-hidden="true"></span><strong id="mm-period-name"></strong><span>の入力内容</span></div>
+    </section>
+    <p id="mm-error" role="alert" hidden></p>
+    <section class="mm-company" aria-labelledby="mm-company-name">
+      <div class="mm-company-head"><div class="mm-company-info"><span class="mm-company-mark" aria-hidden="true">A</span><div><div class="mm-company-label">取引先</div><h2 id="mm-company-name">青葉編集室</h2></div><button type="button" class="mm-text-button" id="mm-company-edit">会社名を編集</button></div><span class="mm-fiction">架空の会社</span></div>
+      <div class="mm-company-body">
+        <div class="mm-detail-head"><div><h3>報酬明細 <span id="mm-row-count"></span></h3><p>年・月は共通。明細を追加していくだけで、この月にまとまります。</p></div><button type="button" class="mm-primary" id="mm-add">＋ 報酬明細を追加</button></div>
+        <div class="mm-table-wrap"><table class="mm-table"><thead><tr><th scope="col">業務内容</th><th scope="col" class="mm-amount-heading">報酬額（円）</th></tr></thead><tbody id="mm-rows"></tbody></table></div>
+        <div class="mm-empty" id="mm-empty" hidden><strong>この月の明細はまだありません</strong><p>「報酬明細を追加」から入力を始められます。</p></div>
+        <div class="mm-total-line"><div><span>手入力報酬の合計</span><small>税・値引き・源泉の自動計算は含みません</small></div><strong id="mm-total" aria-live="polite"></strong></div>
+      </div>
+      <div class="mm-checks"><div><strong>この月の作業チェック</strong><p>マネーフォワード等で作業を終えたらチェック</p><p>請求済 → 入金済の順にチェック。戻すときは逆の順です。</p></div><div class="mm-check-options"><label><input type="checkbox" id="mm-invoiced">請求済</label><label><input type="checkbox" id="mm-paid">入金済</label></div></div>
+      <p id="mm-lock-note" class="mm-lock-note" hidden>請求済みです。明細を修正するときは、外部の請求状態を確認してから「請求済」を外してください。</p>
+    </section>
+    <div class="mm-savegroup"><span id="mm-save-state" role="status">保存済み</span><button type="button" class="mm-primary" id="mm-save">変更を保存</button></div>
+    <footer class="mm-footer"><span>操作確認用モック · 架空データのみ</span><span>保存はこの表示内だけ。再読み込みすると初期状態に戻ります。</span></footer>
+  </main>
+  <dialog id="mm-add-dialog" aria-labelledby="mm-add-title"><form id="mm-add-form"><div class="mm-dialog-heading"><h2 id="mm-add-title">報酬明細を追加</h2><span id="mm-add-period"></span></div><label class="mm-field">業務内容<input id="mm-description" required maxlength="160" placeholder="例：取材・原稿作成"></label><label class="mm-field">報酬額（円）<input id="mm-amount" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="9" required placeholder="0"></label><div class="mm-dialog-actions"><button type="button" class="mm-secondary" id="mm-add-cancel">キャンセル</button><button type="button" class="mm-primary" id="mm-add-confirm">この月に追加</button></div></form></dialog>
+  <dialog id="mm-company-dialog" aria-labelledby="mm-company-title"><form id="mm-company-form"><h2 id="mm-company-title">会社名を編集</h2><label class="mm-field">会社名<input id="mm-company-input" required maxlength="80"></label><div class="mm-dialog-actions"><button type="button" class="mm-secondary" id="mm-company-cancel">キャンセル</button><button type="button" class="mm-primary" id="mm-company-confirm">反映する</button></div></form></dialog>
+  <dialog id="mm-switch-dialog" aria-labelledby="mm-switch-title"><h2 id="mm-switch-title">変更を保存しますか？</h2><p id="mm-switch-message"></p><p class="mm-dialog-note">保存する内容は、切替前の月に残ります。</p><div class="mm-dialog-actions mm-switch-actions"><button type="button" class="mm-secondary" id="mm-switch-cancel">切替を中止</button><button type="button" class="mm-secondary" id="mm-switch-discard">破棄して切替</button><button type="button" class="mm-primary" id="mm-switch-save">保存して切替</button></div></dialog>
+</div>
+<style>
+#invoice-monthly-mock .mm-savegroup{justify-content:flex-end;margin-top:20px}
+#invoice-monthly-mock{--mm-bg:light-dark(#f5f6f8,#171c24);--mm-surface:light-dark(#fff,#222a35);--mm-text:light-dark(#263342,#edf1f6);--mm-sub:light-dark(#637080,#b1becd);--mm-border:light-dark(#e1e5eb,#414e5e);--mm-accent:light-dark(#bc5421,#efb28d);--mm-on-accent:light-dark(#fff,#24170f);--mm-soft:light-dark(#faf0e9,#3b2f27);--mm-green:light-dark(#276b53,#91d3b6);color-scheme:light dark;background:var(--mm-bg);color:var(--mm-text);font:14px/1.6 -apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;min-height:670px;width:100%}
+#invoice-monthly-mock *{box-sizing:border-box}#invoice-monthly-mock [hidden]{display:none!important}#invoice-monthly-mock button,#invoice-monthly-mock input,#invoice-monthly-mock select{font:inherit;color:inherit}#invoice-monthly-mock button{cursor:pointer;border:1px solid var(--mm-border);border-radius:7px;background:var(--mm-surface);padding:9px 15px;white-space:nowrap}#invoice-monthly-mock button:disabled{opacity:.45;cursor:default}#invoice-monthly-mock button:focus-visible,#invoice-monthly-mock input:focus-visible,#invoice-monthly-mock select:focus-visible{outline:2px solid var(--mm-accent);outline-offset:3px}#invoice-monthly-mock button.mm-primary{background:var(--mm-accent);border-color:var(--mm-accent);color:var(--mm-on-accent);font-weight:500}#invoice-monthly-mock button.mm-text-button{border:0;background:none;padding:4px 8px;color:var(--mm-sub);font-size:12px}#invoice-monthly-mock .mm-header{padding:17px 30px;border-bottom:1px solid var(--mm-border);background:var(--mm-surface);display:flex;justify-content:space-between;align-items:center;gap:12px}#invoice-monthly-mock .mm-brand{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:500}#invoice-monthly-mock .mm-logo{width:30px;height:30px;display:grid;place-items:center;border-radius:8px;background:var(--mm-accent);color:var(--mm-on-accent)}#invoice-monthly-mock .mm-preview{color:var(--mm-sub);font-size:12px}#invoice-monthly-mock .mm-main{max-width:1120px;margin:0 auto;padding:28px 30px 22px}#invoice-monthly-mock .mm-titlebar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px}#invoice-monthly-mock .mm-eyebrow{font-size:11px;letter-spacing:.12em;color:var(--mm-sub)}#invoice-monthly-mock h1{font-size:25px;line-height:1.4;font-weight:500;margin:3px 0 5px}#invoice-monthly-mock h2{font-size:18px;font-weight:500;margin:0}#invoice-monthly-mock h3{font-size:14px;font-weight:500;margin:0}#invoice-monthly-mock p{color:var(--mm-sub);margin:4px 0;font-size:12px}#invoice-monthly-mock .mm-savegroup{display:flex;align-items:center;gap:14px}#invoice-monthly-mock #mm-save-state{font-size:12px;color:var(--mm-sub)}#invoice-monthly-mock .mm-period{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:22px}#invoice-monthly-mock .mm-period-fields{display:flex;flex-wrap:wrap;align-items:end;gap:10px}#invoice-monthly-mock .mm-period label{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--mm-sub)}#invoice-monthly-mock .mm-period input,#invoice-monthly-mock .mm-period select{background:var(--mm-surface);border:1px solid var(--mm-border);border-radius:7px;padding:8px 10px;height:39px;font-size:14px;color:var(--mm-text)}#invoice-monthly-mock #mm-year{width:100px}#invoice-monthly-mock #mm-month{width:84px}#invoice-monthly-mock .mm-month-arrows{display:flex;gap:5px}#invoice-monthly-mock .mm-month-arrows button{padding:7px 12px;height:39px}#invoice-monthly-mock .mm-period-caption{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mm-sub)}#invoice-monthly-mock .mm-period-caption strong{font-weight:500;color:var(--mm-text)}#invoice-monthly-mock .mm-dot{width:6px;height:6px;border-radius:50%;background:var(--mm-green);margin-right:3px}#invoice-monthly-mock .mm-company{border:1px solid var(--mm-border);border-radius:10px;background:var(--mm-surface);overflow:hidden}#invoice-monthly-mock .mm-company-head{padding:20px 22px;border-bottom:1px solid var(--mm-border);display:flex;align-items:center;justify-content:space-between;gap:12px}#invoice-monthly-mock .mm-company-info{display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap}#invoice-monthly-mock .mm-company-mark{display:grid;place-items:center;width:38px;height:38px;background:var(--mm-soft);color:var(--mm-accent);border-radius:8px;font-weight:500}#invoice-monthly-mock .mm-company-label{font-size:11px;color:var(--mm-sub)}#invoice-monthly-mock #mm-company-name{overflow-wrap:anywhere}#invoice-monthly-mock .mm-fiction{font-size:11px;color:var(--mm-sub);white-space:nowrap}#invoice-monthly-mock .mm-company-body{padding:22px}#invoice-monthly-mock .mm-detail-head{display:flex;flex-direction:column;justify-content:flex-start;align-items:flex-start;gap:15px;margin-bottom:18px}#invoice-monthly-mock #mm-row-count{font-size:12px;color:var(--mm-sub);margin-left:6px}#invoice-monthly-mock .mm-table{width:100%;border-collapse:collapse;table-layout:fixed}#invoice-monthly-mock .mm-table th{color:var(--mm-sub);font-weight:400;font-size:12px;text-align:left;padding:9px 8px;background:var(--mm-bg);border-bottom:1px solid var(--mm-border)}#invoice-monthly-mock .mm-table th:first-child{width:70%}#invoice-monthly-mock .mm-table th:last-child{width:30%;text-align:right}#invoice-monthly-mock .mm-table td{padding:15px 6px;border-bottom:1px solid var(--mm-border)}#invoice-monthly-mock .mm-table input,#invoice-monthly-mock .mm-table select{width:100%;min-width:0;padding:8px;border:1px solid transparent;border-radius:5px;background:var(--mm-surface);font-size:13px}#invoice-monthly-mock .mm-table input:hover,#invoice-monthly-mock .mm-table select:hover{border-color:var(--mm-border)}#invoice-monthly-mock .mm-table input[inputmode=numeric]{text-align:right;font-variant-numeric:tabular-nums}#invoice-monthly-mock input:disabled,#invoice-monthly-mock select:disabled{opacity:.7}#invoice-monthly-mock .mm-total-line{display:flex;justify-content:space-between;align-items:center;gap:15px;padding-top:24px}#invoice-monthly-mock .mm-total-line small{display:block;color:var(--mm-sub);font-size:11px;margin-top:3px}#invoice-monthly-mock #mm-total{font-size:27px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}#invoice-monthly-mock .mm-checks{background:var(--mm-bg);border-top:1px solid var(--mm-border);padding:17px 22px;display:flex;justify-content:space-between;align-items:center;gap:15px}#invoice-monthly-mock .mm-checks strong{font-size:12px;font-weight:500}#invoice-monthly-mock .mm-check-options{display:flex;gap:22px}#invoice-monthly-mock .mm-check-options label{display:flex;align-items:center;gap:7px;white-space:nowrap}#invoice-monthly-mock input[type=checkbox]{width:17px;height:17px;accent-color:var(--mm-accent)}#invoice-monthly-mock .mm-footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-top:16px;font-size:11px;color:var(--mm-sub)}#invoice-monthly-mock .mm-empty{text-align:center;padding:35px 15px}#invoice-monthly-mock .mm-empty strong{font-weight:500;font-size:14px}#invoice-monthly-mock .mm-lock-note{padding:8px 22px 13px;background:var(--mm-bg);margin:0}#invoice-monthly-mock dialog{color:var(--mm-text);background:var(--mm-surface);border:1px solid var(--mm-border);border-radius:12px;padding:25px;width:min(460px,calc(100% - 28px));max-height:90%;overflow:auto}#invoice-monthly-mock dialog::backdrop{background:rgb(12 22 35 / .35)}#invoice-monthly-mock .mm-dialog-heading{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:18px}#invoice-monthly-mock .mm-dialog-heading span{font-size:12px;color:var(--mm-sub)}#invoice-monthly-mock .mm-field{display:flex;flex-direction:column;gap:6px;margin-top:16px;font-size:12px}#invoice-monthly-mock .mm-field input,#invoice-monthly-mock .mm-field select{background:var(--mm-surface);border:1px solid var(--mm-border);border-radius:6px;padding:10px;min-width:0;width:100%;font-size:14px}#invoice-monthly-mock .mm-dialog-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:25px}#invoice-monthly-mock .mm-switch-actions button{font-size:12px;padding:9px 11px}#invoice-monthly-mock #mm-switch-message{margin-top:15px;font-size:14px;color:var(--mm-text)}#invoice-monthly-mock #mm-error{color:light-dark(#ae321c,#ffa491);padding:10px 0}
+@media(max-width:640px){#invoice-monthly-mock .mm-header{padding:14px 16px}#invoice-monthly-mock .mm-main{padding:20px 16px}#invoice-monthly-mock .mm-titlebar{align-items:start;flex-direction:column}#invoice-monthly-mock .mm-savegroup{width:100%;justify-content:space-between}#invoice-monthly-mock .mm-company-head,#invoice-monthly-mock .mm-company-body{padding:16px}#invoice-monthly-mock .mm-detail-head{align-items:start;flex-direction:column}#invoice-monthly-mock .mm-fiction{display:none}#invoice-monthly-mock .mm-checks{padding:16px;flex-wrap:wrap}#invoice-monthly-mock .mm-total-line{align-items:end}#invoice-monthly-mock .mm-total-line small{max-width:155px}#invoice-monthly-mock #mm-total{font-size:22px}#invoice-monthly-mock .mm-table thead{display:none}#invoice-monthly-mock .mm-table tr{display:grid;grid-template-columns:1fr;gap:3px;border-top:1px solid var(--mm-border);padding:10px 0}#invoice-monthly-mock .mm-table td{display:grid;grid-template-columns:70px minmax(0,1fr);align-items:center;border:0;padding:2px 0}#invoice-monthly-mock .mm-table td:before{content:attr(data-label);font-size:11px;color:var(--mm-sub)}#invoice-monthly-mock .mm-table input,#invoice-monthly-mock .mm-table select{font-size:16px;border-color:var(--mm-border)}#invoice-monthly-mock .mm-period-fields{gap:7px}#invoice-monthly-mock .mm-preview{font-size:11px}#invoice-monthly-mock .mm-brand{font-size:13px}}
+</style>
+<script data-mock-core>
+function createMockFormKeyboardHandler(confirm){
+  let composing=false;
+  return {
+    compositionstart(){composing=true;},
+    compositionend(){composing=false;},
+    keydown(e){
+      if(e.key!=='Enter'||composing||e.isComposing||e.keyCode===229)return;
+      e.preventDefault();confirm();
+    }
+  };
+}
+function formatMockAmount(raw){return /^[0-9]+$/.test(raw)?Number(raw).toLocaleString('ja-JP'):raw;}
+function parseMockInteger(raw){return /^[0-9]+$/.test(raw)?Number(raw):null;}
+function createMonthlyMock(today){
+  const clone=x=>JSON.parse(JSON.stringify(x));
+  const initial={company:'青葉編集室'};
+  const m={year:today.getFullYear(),month:today.getMonth()+1,masters:clone(initial),saved:{},draft:null,base:null};
+  m.key=()=>`${m.year}-${String(m.month).padStart(2,'0')}`;
+  const empty=()=>({rows:[],invoiced:false,paid:false});
+  m.saved[m.key()]={rows:[{description:'採用インタビュー／取材・原稿作成',amount:80000},{description:'広報記事の編集（2本）',amount:24000}],invoiced:false,paid:false};
+  m.load=()=>{m.draft={...clone(m.saved[m.key()]||empty()),...clone(m.masters)};m.base=clone(m.draft);};
+  m.dirty=()=>JSON.stringify(m.draft)!==JSON.stringify(m.base);
+  m.valid=()=>m.draft.company.trim()!==''&&(!m.draft.paid||m.draft.invoiced)&&m.draft.rows.every(r=>r.description.trim()&&Number.isSafeInteger(r.amount)&&r.amount>=0&&r.amount<=999999999);
+  m.total=()=>m.draft.rows.reduce((sum,r)=>sum+(Number.isSafeInteger(r.amount)?r.amount:0),0);
+  m.save=()=>{if(!m.valid())throw Error('会社・業務内容と、0以上の整数の報酬額を確認してください。');m.masters=clone({company:m.draft.company});m.saved[m.key()]=clone({rows:m.draft.rows,invoiced:m.draft.invoiced,paid:m.draft.paid});m.base=clone(m.draft);};
+  m.switchTo=(year,month,discard=false)=>{if(!Number.isInteger(year)||year<1||year>9999||!Number.isInteger(month)||month<1||month>12)throw Error('年度と月を確認してください。');if(year===m.year&&month===m.month)return 'same';if(m.dirty()&&!discard)return 'confirm';m.year=year;m.month=month;m.load();return 'changed';};
+  m.adjacent=step=>{const n=m.year*12+m.month-1+step;return {year:Math.floor(n/12),month:n%12+1};};
+  m.add=(description,amount)=>{description=description.trim();if(!description||!Number.isSafeInteger(amount)||amount<0||amount>999999999)throw Error('業務内容と、0以上の整数の報酬額を入力してください。');if(m.draft.invoiced)throw Error('請求済を外してから編集してください。');m.draft.rows.push({description,amount});};
+  m.setCheck=(key,value)=>{if(key==='paid'&&value&&!m.draft.invoiced)return;if(key==='invoiced'&&!value&&m.draft.paid)return;m.draft[key]=value;};
+  m.load();return m;
+}
+</script>
+<script>
+(()=>{
+  const root=document.getElementById('invoice-monthly-mock'),get=id=>root.querySelector('#mm-'+id),m=createMonthlyMock(new Date());
+  let amountRaw='';
+  const money=n=>'¥'+n.toLocaleString('ja-JP');let pending=null;
+  const option=(value,text)=>{const o=document.createElement('option');o.value=value;o.textContent=text;return o;};
+  for(let month=1;month<=12;month++)get('month').append(option(month,month+'月'));
+  function error(message){get('error').textContent=message||'';get('error').hidden=!message;}
+  function remember(){if(window.openai?.setWidgetState)window.openai.setWidgetState({modelContent:{screen:'月次入力モック',year:m.year,month:m.month},privateContent:{year:m.year,month:m.month}}).catch(()=>{});}
+  function update(){const dirty=m.dirty();get('save-state').textContent=dirty?'未保存の変更があります':'保存済み';get('save').disabled=!dirty||!m.valid();get('total').textContent=m.valid()?money(m.total()):'入力を確認';get('row-count').textContent=m.draft.rows.length+'件';get('add').disabled=m.draft.invoiced;get('lock-note').hidden=!m.draft.invoiced;get('invoiced').checked=m.draft.invoiced;get('paid').checked=m.draft.paid;get('paid').disabled=!m.draft.invoiced&&!m.draft.paid;get('invoiced').disabled=m.draft.invoiced&&m.draft.paid;}
+  function render(){
+    get('year').value=m.year;get('month').value=m.month;
+    get('period-name').textContent=m.year+'年度／'+m.month+'月';
+    get('company-name').textContent=m.draft.company;get('rows').replaceChildren();
+    m.draft.rows.forEach((r,i)=>{
+      const tr=document.createElement('tr');
+      for(const [label,key] of [['業務内容','description'],['報酬額（円）','amount']]){
+        const td=document.createElement('td');td.dataset.label=label;
+        const input=document.createElement('input');input.type='text';input.value=r[key];
+        if(key==='amount'){input.value=formatMockAmount(String(r.amount??''));input.addEventListener('focus',()=>{input.value=String(r.amount??'');input.maxLength=9;input.pattern='[0-9]+';});input.addEventListener('blur',()=>{input.value=formatMockAmount(input.value);input.maxLength=11;input.pattern='[0-9,]+';});input.inputMode='numeric';input.pattern='[0-9,]+';input.maxLength=11;}else input.maxLength=160;
+        input.required=true;input.setAttribute('aria-label',`${i+1}行目の${label}`);input.disabled=m.draft.invoiced;
+        input.addEventListener('input',()=>{r[key]=key==='amount'?parseMockInteger(input.value):input.value;update();});
+        td.append(input);tr.append(td);
+      }
+      get('rows').append(tr);
+    });
+    get('empty').hidden=m.draft.rows.length>0;update();
+  }
+  function switchPeriod(year,month,discard=false){try{error('');const result=m.switchTo(year,month,discard);if(result==='confirm'){pending={year,month};get('switch-message').textContent=`${m.year}年${m.month}月の変更が未保存です。${year}年${month}月へ切り替えます。`;get('switch-dialog').showModal();get('year').value=m.year;get('month').value=m.month;}else{render();remember();}}catch(e){error(e.message);get('year').value=m.year;get('month').value=m.month;}}
+  get('year').onchange=()=>switchPeriod(parseMockInteger(get('year').value),m.month);get('month').onchange=()=>switchPeriod(m.year,Number(get('month').value));
+  get('prev').onclick=()=>{const p=m.adjacent(-1);switchPeriod(p.year,p.month);};get('next').onclick=()=>{const p=m.adjacent(1);switchPeriod(p.year,p.month);};
+  get('save').onclick=()=>{try{m.save();error('');update();remember();}catch(e){error(e.message);}};
+  for(const key of ['invoiced','paid'])get(key).onchange=()=>{m.setCheck(key,get(key).checked);render();remember();};
+  get('add').onclick=()=>{get('add-form').reset();amountRaw='';get('add-period').textContent=m.year+'年'+m.month+'月';get('add-dialog').showModal();get('description').focus();};
+
+  get('amount').addEventListener('input',()=>{amountRaw=get('amount').value;});
+  get('amount').addEventListener('focus',()=>{get('amount').value=amountRaw;get('amount').pattern='[0-9]+';get('amount').maxLength=9;});
+  get('amount').addEventListener('blur',()=>{get('amount').value=formatMockAmount(amountRaw);get('amount').pattern='[0-9,]+';get('amount').maxLength=11;});
+  get('add-cancel').onclick=()=>get('add-dialog').close();get('add-confirm').onclick=()=>{if(!get('add-form').reportValidity())return;try{m.add(get('description').value,parseMockInteger(amountRaw));get('add-dialog').close();render();remember();}catch(e){error(e.message);}};
+  get('company-edit').onclick=()=>{get('company-input').value=m.draft.company;get('company-dialog').showModal();};get('company-cancel').onclick=()=>get('company-dialog').close();get('company-confirm').onclick=()=>{if(!get('company-form').reportValidity())return;const name=get('company-input').value.trim();if(!name)return;m.draft.company=name;get('company-dialog').close();render();remember();};
+  get('switch-cancel').onclick=()=>{pending=null;get('switch-dialog').close();};get('switch-dialog').oncancel=()=>{pending=null;};
+  get('switch-discard').onclick=()=>{const p=pending;pending=null;get('switch-dialog').close();switchPeriod(p.year,p.month,true);};
+  get('switch-save').onclick=()=>{try{m.save();const p=pending;pending=null;get('switch-dialog').close();switchPeriod(p.year,p.month);}catch(e){get('switch-message').textContent=e.message;}};
+  function restore(state){const p=state?.privateContent;if(p&&Number.isInteger(p.year)&&Number.isInteger(p.month)&&!m.dirty()){try{m.switchTo(p.year,p.month);render();}catch{}}}
+  for(const [form,button] of [['add-form','add-confirm'],['company-form','company-confirm']]){
+    const handler=createMockFormKeyboardHandler(()=>get(button).click());
+    get(form).addEventListener('compositionstart',handler.compositionstart);
+    get(form).addEventListener('compositionend',handler.compositionend);
+    get(form).addEventListener('keydown',handler.keydown);
+  }
+  restore(window.openai?.widgetState);window.addEventListener('openai:set_globals',e=>restore(e.detail?.globals?.widgetState));render();
+})();
+</script>

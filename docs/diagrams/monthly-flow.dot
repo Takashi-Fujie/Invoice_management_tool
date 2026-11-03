@@ -1,0 +1,28 @@
+// 生成元: docs/業務フロー.md §1。現行の操作だけを表示。
+digraph monthly {
+graph [rankdir=TB,bgcolor="#f6f8fc",pad="0.3",ranksep="0.35",fontname="Hiragino Sans",fontsize=18,label="現行の月次請求フロー · 2026年11月3日",labelloc=t];
+node [shape=box,style="rounded,filled",fillcolor=white,color="#bccbdd",fontname="Hiragino Sans",fontsize=12,margin="0.2,0.12"];
+edge [color="#60768d"];
+A [label="URLの年月を復元、または年度と月を選ぶ\n会社の表示・追加、または前月の表示設定をコピー"];
+B [label="会社ごとに業務内容と報酬タイプを入力\nまたは空の請求前の会社へ前月報酬をコピー"];
+C [label="案件単価・交通費・立替経費は金額を直接入力・時給は小数時間と時間単価"];
+D [label="税込税抜・報酬の値引き・源泉対象チェックを確認"];
+E [label="MFで請求書を作成・送付し源泉額を計算する"];
+F [label="会社と月ごとの源泉額を手入力し小計と請求額を照合"];
+G [label="必要な調整明細を入力し、会社別・全社の当月集計を確認して全社保存"];
+H [label="外部作業が完了した会社の請求済を付けて保存"];
+I [label="外部で全額入金を確認し入金済を付けて保存"];
+J [label="MFの消し込みは外部で実行・ローカルの記録はS17で今後対応"];
+K [label="年間集計で保存済み12か月と年合計・内訳を確認"];
+G -> K;
+K -> A;
+A -> B;
+B -> C;
+C -> D;
+D -> E;
+E -> F;
+F -> G;
+G -> H;
+H -> I;
+I -> J;
+}

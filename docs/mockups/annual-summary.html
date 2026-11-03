@@ -1,0 +1,1037 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>年間集計モック｜請求管理ツール</title>
+    <style>
+      :root {
+        font:
+          13px/1.5 system-ui,
+          -apple-system,
+          "Hiragino Sans",
+          sans-serif;
+        color: #263342;
+        background: #f5f6f8;
+        font-synthesis: none;
+        --accent: #bc5421;
+        --line: #dce1e7;
+        --muted: #637080;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      button,
+      input,
+      a {
+        font: inherit;
+      }
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+      button {
+        cursor: pointer;
+      }
+      a {
+        color: inherit;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible {
+        outline: 3px solid #bc5421;
+        outline-offset: 3px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 28px;
+        background: white;
+        border-bottom: 1px solid var(--line);
+      }
+      .brand {
+        font-size: 15px;
+        letter-spacing: 0.04em;
+      }
+      .prototype {
+        font-size: 11px;
+        color: #6f747c;
+        background: #f4f4f4;
+        border-radius: 4px;
+        padding: 3px 8px;
+      }
+      main {
+        padding: 26px 28px 32px;
+        max-width: 1800px;
+        margin: auto;
+      }
+      .heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 22px;
+      }
+      h1 {
+        font-size: 23px;
+        letter-spacing: 0.03em;
+        margin: 0 0 3px;
+        font-weight: 650;
+      }
+      h2 {
+        font-size: 17px;
+        margin: 0 0 14px;
+      }
+      .subtitle {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .period {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .year-select {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .year-select input {
+        width: 72px;
+        border: 0;
+        border-bottom: 1px solid #9ba4ae;
+        background: transparent;
+        font-size: 20px;
+        font-weight: 600;
+        text-align: center;
+        padding: 4px 0;
+        border-radius: 0;
+        appearance: textfield;
+      }
+      .year-select input::-webkit-inner-spin-button {
+        appearance: none;
+      }
+      .year-select span {
+        font-size: 14px;
+      }
+      .arrow,
+      .back {
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: white;
+        min-height: 34px;
+        padding: 5px 12px;
+        color: #43505e;
+      }
+      .arrow {
+        font-size: 20px;
+        line-height: 1;
+        width: 34px;
+        padding: 3px;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .legend {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+        font-size: 11px;
+        color: #5c6978;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .unit {
+        color: var(--muted);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .status {
+        display: inline-flex;
+        flex-shrink: 0;
+        width: 15px;
+        height: 15px;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1;
+        vertical-align: middle;
+      }
+      .status.draft {
+        border: 1.5px solid #9d7338;
+        border-radius: 50%;
+        width: 13px;
+        height: 13px;
+        margin: 1px;
+      }
+      .status.invoiced {
+        position: relative;
+        border: 1.5px solid #4584bb;
+        border-radius: 2px;
+        width: 12px;
+        height: 15px;
+        margin: 0 1.5px;
+      }
+      .status.invoiced::before {
+        content: "";
+        position: absolute;
+        left: 2px;
+        right: 2px;
+        top: 4px;
+        border-top: 1px solid #4584bb;
+        box-shadow: 0 3px 0 #4584bb;
+      }
+      .status.paid {
+        color: #53636c;
+        background: #e2e7ea;
+        border-radius: 50%;
+      }
+      .table-scroll {
+        overflow: auto;
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        width: 100%;
+        isolation: isolate;
+      }
+      table {
+        border-collapse: separate;
+        border-spacing: 0;
+        width: 100%;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      table.annual {
+        min-width: 1420px;
+        table-layout: fixed;
+      }
+      .annual col.company-col {
+        width: 184px;
+      }
+      .annual col.total-col {
+        width: 118px;
+      }
+      th,
+      td {
+        padding: 0 8px;
+        text-align: right;
+        white-space: nowrap;
+        border-bottom: 1px solid #e8ecf0;
+      }
+      thead th {
+        height: 43px;
+        background: #f7f8fa;
+        font-size: 11px;
+        font-weight: 600;
+        color: #62707c;
+      }
+      th:first-child {
+        text-align: left;
+      }
+      .annual th:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: white;
+        border-right: 1px solid #e8ecf0;
+      }
+      .annual thead th:first-child {
+        background: #f7f8fa;
+        z-index: 4;
+      }
+      .annual .annual-total {
+        background: #f7f8fa;
+        border-left: 1px solid #e1e5e9;
+        font-weight: 650;
+        position: sticky;
+        right: 0;
+        z-index: 1;
+      }
+      .annual thead .annual-total {
+        z-index: 3;
+      }
+      .annual tbody tr.company th,
+      .annual tbody tr.company td {
+        height: 57px;
+      }
+      .annual tbody tr.company:hover td,
+      .annual tbody tr.company:hover th {
+        background: #fffaf6;
+      }
+      .company-toggle {
+        border: 0;
+        background: transparent;
+        padding: 11px 0;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: #263342;
+        font-size: 12px;
+        font-weight: 600;
+        text-align: left;
+        width: 100%;
+      }
+      .chevron {
+        font-size: 10px;
+        width: 10px;
+        color: #8c98a2;
+      }
+      .company-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .amount-link {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 7px;
+        text-decoration: none;
+        min-height: 42px;
+        min-width: 0;
+        border-radius: 3px;
+        font-size: 12px;
+        color: #344253;
+      }
+      .amount-link:hover .amount {
+        text-decoration: underline;
+        text-underline-offset: 4px;
+        text-decoration-color: #bc5421;
+      }
+      .amount-link:hover {
+        color: #a3481b;
+      }
+      .company .amount {
+        font-weight: 550;
+      }
+      .missing {
+        display: block;
+        min-height: 42px;
+        align-content: center;
+        color: #adb5bf;
+      }
+      .detail th,
+      .detail td {
+        background: #fafbfc;
+        height: 35px;
+        font-size: 11px;
+      }
+      .annual .detail th:first-child {
+        background: #fafbfc;
+        color: #697787;
+        font-weight: 400;
+        padding-left: 28px;
+      }
+      .detail .amount-link {
+        min-height: 34px;
+        color: #758191;
+        font-size: 11px;
+      }
+      .detail.gross th,
+      .detail.gross td {
+        border-bottom: 2px solid #dce2e8;
+      }
+      .annual tfoot th,
+      .annual tfoot td {
+        height: 55px;
+        font-weight: 700;
+        background: #fbf1e9;
+        border-bottom: 0;
+        border-top: 1px solid #e5cbb7;
+      }
+      .annual tfoot th:first-child,
+      .annual tfoot .annual-total {
+        background: #fbf1e9;
+      }
+      .hint {
+        margin: 12px 0 0;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .empty {
+        padding: 40px 10px;
+        text-align: center;
+        color: var(--muted);
+      }
+      .detail-header {
+        margin-top: 20px;
+        padding: 20px 0 14px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .detail-header h2 {
+        margin: 0;
+      }
+      .state-label {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        color: #596b7c;
+      }
+      .monthly {
+        min-width: 650px;
+      }
+      .monthly th,
+      .monthly td {
+        padding: 12px 14px;
+      }
+      .monthly th:nth-child(2),
+      .monthly td:nth-child(2) {
+        text-align: left;
+      }
+      .monthly tbody th {
+        width: 50px;
+        color: #8a96a2;
+        font-weight: 400;
+      }
+      .monthly tfoot th,
+      .monthly tfoot td {
+        font-weight: 650;
+        background: #f7f8fa;
+      }
+      .monthly-sums {
+        display: flex;
+        justify-content: flex-end;
+        gap: 28px;
+        flex-wrap: wrap;
+        padding: 20px 0;
+      }
+      .sum-item {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+      }
+      .sum-item span {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .sum-item strong {
+        font-size: 17px;
+        font-weight: 650;
+        font-variant-numeric: tabular-nums;
+      }
+      .sum-item.final strong {
+        color: var(--accent);
+      }
+      .month-note {
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      @media (max-width: 700px) {
+        header {
+          padding: 12px 16px;
+        }
+        .brand {
+          font-size: 13px;
+        }
+        .prototype {
+          font-size: 10px;
+        }
+        main {
+          padding: 20px 14px;
+        }
+        .heading {
+          align-items: flex-start;
+          flex-wrap: wrap;
+          gap: 16px;
+          margin-bottom: 20px;
+        }
+        h1 {
+          font-size: 21px;
+        }
+        .period {
+          gap: 10px;
+        }
+        .arrow {
+          min-height: 40px;
+          width: 40px;
+        }
+        .toolbar {
+          align-items: flex-start;
+        }
+        .legend {
+          gap: 10px;
+          font-size: 10px;
+        }
+        .annual col.company-col {
+          width: 146px;
+        }
+        .annual .annual-total {
+          position: static;
+        }
+        .annual th:first-child {
+          padding-left: 10px;
+        }
+        .annual .detail th:first-child {
+          padding-left: 27px;
+        }
+        .company-toggle {
+          min-height: 48px;
+          font-size: 11px;
+        }
+        .amount-link,
+        .detail .amount-link {
+          min-height: 44px;
+        }
+        .detail-header {
+          align-items: flex-start;
+        }
+        .detail-header h2 {
+          font-size: 14px;
+        }
+        .monthly-sums {
+          gap: 18px;
+        }
+        .sum-item strong {
+          font-size: 16px;
+        }
+        .back {
+          min-height: 42px;
+        }
+        .hint {
+          line-height: 1.7;
+        }
+      }
+      .annual tfoot .total-detail th,
+      .annual tfoot .total-detail td {
+        height: 35px;
+        font-weight: 400;
+        background: #fff8f2;
+        border-top: 0;
+        border-bottom: 1px solid #f0e5db;
+      }
+      .annual tfoot .total-detail th:first-child {
+        padding-left: 28px;
+        color: #697787;
+      }
+      .annual tfoot .total-detail .annual-total {
+        font-weight: 550;
+      }
+      .annual .detail.net th,
+      .annual .detail.net td {
+        border-bottom: 2px solid #aebdcb;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong class="brand">請求管理ツール</strong
+      ><span class="prototype">画面モック · 架空データ</span>
+    </header>
+    <main id="app"></main>
+    <script>
+      (() => {
+        "use strict";
+        const app = document.getElementById("app");
+        const companies = [
+          { id: "aoba", name: "青葉デザイン（架空）" },
+          { id: "komorebi", name: "こもれび編集室（架空）" },
+          { id: "minato", name: "みなと制作（架空）" },
+          { id: "hidamari", name: "ひだまり企画（架空）" },
+        ];
+        const records = [];
+        const detailColumns = [
+          ["withheld", "源泉徴収"],
+          ["gross", "小計"],
+          ["adjustment", "調整額"],
+          ["discount", "値引き"],
+          ["tax", "消費税（10%）"],
+          ["net", "税抜合計"],
+          ["expense", "立替経費"],
+          ["travel", "交通費"],
+          ["fee", "報酬額"],
+        ];
+        function add(
+          year,
+          month,
+          company,
+          fee,
+          travel,
+          withheld,
+          status,
+          adjustment = 0,
+          details = {},
+        ) {
+          const expense = details.expense ?? 0;
+          const discount = details.discount ?? 0;
+          const base = fee + travel + expense;
+          const tax = Math.floor(
+            base / (details.priceMode === "exclusive" ? 10 : 11),
+          );
+          const beforeDiscount =
+            base + (details.priceMode === "exclusive" ? tax : 0);
+          const gross = beforeDiscount - discount + adjustment;
+          records.push({
+            year,
+            month,
+            company,
+            fee,
+            travel,
+            expense,
+            net: beforeDiscount - tax,
+            tax,
+            discount,
+            withheld,
+            status,
+            adjustment,
+            gross,
+            invoice: gross - withheld,
+          });
+        }
+        add(2026, 1, "aoba", 100000, 2000, 10210, "paid");
+        add(2026, 2, "aoba", 120000, 3000, 12252, "paid");
+        for (let month = 3; month <= 11; month++)
+          add(
+            2026,
+            month,
+            "aoba",
+            month === 5 ? 125000 : 100000 + month * 3000,
+            month === 5 ? 0 : month % 3 === 0 ? 2400 : 1200,
+            10000 + month * 306,
+            month <= 9 ? "paid" : month === 10 ? "invoiced" : "draft",
+            month === 4 ? -1 : 0,
+            {
+              expense: month === 6 ? 3600 : 0,
+              discount: month === 8 ? 1000 : 0,
+              priceMode: month === 5 ? "exclusive" : "inclusive",
+            },
+          );
+        for (let month = 1; month <= 10; month++)
+          add(
+            2026,
+            month,
+            "komorebi",
+            45000 + month * 5000,
+            month % 2 ? 0 : 1680,
+            4500 + month * 400,
+            month < 10 ? "paid" : "invoiced",
+          );
+        for (const month of [1, 3, 4, 6, 9, 11])
+          add(
+            2026,
+            month,
+            "minato",
+            month === 11 ? 65000 : 50000,
+            month === 3 ? 1860 : 0,
+            month === 11 ? 6636 : 5105,
+            month <= 6 ? "paid" : month === 9 ? "invoiced" : "draft",
+          );
+        add(2026, 7, "minato", 10000, 0, 10000, "invoiced");
+        add(2025, 1, "aoba", 50000, 0, 5105, "paid");
+        add(2025, 12, "komorebi", 72000, 1200, 7351, "paid");
+        const statusLabels = {
+          draft: "請求前",
+          invoiced: "請求済・未入金",
+          paid: "入金済",
+        };
+        const format = (value) => value.toLocaleString("ja-JP");
+        const state = { year: 2026, expanded: new Set(), scroll: 0 };
+        function el(tag, text, attrs = {}) {
+          const n = document.createElement(tag);
+          if (text !== undefined && text !== null) n.textContent = text;
+          for (const [k, v] of Object.entries(attrs)) {
+            if (k === "class") n.className = v;
+            else n.setAttribute(k, v);
+          }
+          return n;
+        }
+        function icon(status) {
+          return el("span", status === "paid" ? "✓" : "", {
+            class: "status " + status,
+            "aria-hidden": "true",
+            "data-status": statusLabels[status],
+          });
+        }
+        function findRecord(id, month) {
+          return records.find(
+            (r) =>
+              r.year === state.year && r.company === id && r.month === month,
+          );
+        }
+        function yearly(company, key) {
+          return records
+            .filter(
+              (r) =>
+                r.year === state.year && (!company || r.company === company),
+            )
+            .reduce((sum, r) => sum + r[key], 0);
+        }
+        function linkFor(month) {
+          const url = new URL("http://127.0.0.1:8802/");
+          url.searchParams.set("year", state.year);
+          url.searchParams.set("month", month);
+          return url;
+        }
+        function amountCell(company, month, key, label, withStatus = false) {
+          const td = el("td");
+          const record = findRecord(company.id, month);
+          if (!record) {
+            td.append(
+              el("span", "—", {
+                class: "missing",
+                "aria-label":
+                  company.name +
+                  " " +
+                  state.year +
+                  "年" +
+                  month +
+                  "月 データなし",
+              }),
+            );
+            return td;
+          }
+          const attrs = {
+            href: linkFor(month).href,
+            class: "amount-link",
+            "aria-label":
+              company.name +
+              " " +
+              state.year +
+              "年" +
+              month +
+              "月 " +
+              label +
+              " " +
+              format(record[key]) +
+              "円" +
+              (withStatus ? " " + statusLabels[record.status] : ""),
+            "data-company": company.name,
+            "data-metric": key,
+            "data-month": month,
+            "data-amount": record[key],
+          };
+          const link = el("a", null, attrs);
+          if (withStatus) link.append(icon(record.status));
+          link.append(el("span", format(record[key]), { class: "amount" }));
+          td.append(link);
+          return td;
+        }
+        function annual() {
+          app.replaceChildren();
+          const heading = el("div", null, { class: "heading" });
+          const titles = el("div");
+          titles.append(
+            el("h1", "年間集計"),
+            el("p", state.year + "年1月〜12月 · 会社ごとの請求額", {
+              class: "subtitle",
+            }),
+          );
+          const period = el("div", null, { class: "period" });
+          const prev = el("button", "‹", {
+            class: "arrow",
+            "aria-label": "前年へ",
+            type: "button",
+          });
+          const next = el("button", "›", {
+            class: "arrow",
+            "aria-label": "翌年へ",
+            type: "button",
+          });
+          prev.onclick = () => changeYear(state.year - 1);
+          next.onclick = () => changeYear(state.year + 1);
+          const label = el("label", null, { class: "year-select" });
+          const year = el("input", null, {
+            type: "text",
+            inputmode: "numeric",
+            maxlength: "4",
+            "aria-label": "対象年",
+          });
+          year.value = String(state.year);
+          year.onchange = () => {
+            const value = Number(year.value);
+            if (Number.isInteger(value) && value >= 1 && value <= 9999)
+              changeYear(value);
+            else year.value = String(state.year);
+          };
+          year.onkeydown = (e) => {
+            if (e.key === "ArrowUp" || e.key === "ArrowDown")
+              e.preventDefault();
+            if (e.key === "Enter") year.onchange();
+          };
+          label.append(year, el("span", "年"));
+          period.append(prev, label, next);
+          heading.append(titles, period);
+          app.append(heading);
+          const toolbar = el("div", null, { class: "toolbar" });
+          const legend = el("div", null, {
+            class: "legend",
+            "aria-label": "請求・入金の状態",
+          });
+          for (const status of ["draft", "invoiced", "paid"]) {
+            const item = el("span", null, { class: "legend-item" });
+            item.append(icon(status), el("span", statusLabels[status]));
+            legend.append(item);
+          }
+          toolbar.append(legend, el("span", "単位：円", { class: "unit" }));
+          app.append(toolbar);
+          const wrapper = el("div", null, {
+            class: "table-scroll",
+            id: "annual-scroll",
+            "aria-label": "年間集計表。横にスクロールできます",
+          });
+          const table = el("table", null, {
+            class: "annual",
+            "aria-label": state.year + "年の会社別年間集計",
+          });
+          const caption = el(
+            "caption",
+            "会社と全社合計の矢印で金額内訳を開閉します。会社別の月別金額から既存の月次入力ページへ移動できます。",
+            { class: "sr-only" },
+          );
+          table.append(caption);
+          const cols = el("colgroup");
+          cols.append(el("col", null, { class: "company-col" }));
+          for (let m = 1; m <= 12; m++) cols.append(el("col"));
+          cols.append(el("col", null, { class: "total-col" }));
+          table.append(cols);
+          const head = el("thead");
+          const header = el("tr");
+          header.append(el("th", "会社 / 請求額", { scope: "col" }));
+          for (let m = 1; m <= 12; m++)
+            header.append(el("th", m + "月", { scope: "col" }));
+          header.append(
+            el("th", "年合計", { scope: "col", class: "annual-total" }),
+          );
+          head.append(header);
+          table.append(head);
+          const body = el("tbody");
+          const hasData = records.some((r) => r.year === state.year);
+          if (hasData)
+            for (const company of companies) {
+              const row = el("tr", null, { class: "company" });
+              const name = el("th", null, { scope: "row" });
+              const toggle = el("button", null, {
+                class: "company-toggle",
+                type: "button",
+                "aria-label": company.name + "の金額内訳",
+                "aria-expanded": state.expanded.has(company.id),
+                "aria-controls": "details-" + company.id,
+              });
+              toggle.append(
+                el("span", state.expanded.has(company.id) ? "▼" : "▶", {
+                  class: "chevron",
+                  "aria-hidden": "true",
+                }),
+                el("span", company.name, { class: "company-name" }),
+              );
+              toggle.onclick = () => {
+                const scroll =
+                  document.getElementById("annual-scroll")?.scrollLeft || 0;
+                if (state.expanded.has(company.id))
+                  state.expanded.delete(company.id);
+                else state.expanded.add(company.id);
+                state.scroll = scroll;
+                annual();
+                const buttons = document.getElementById("toggle-" + company.id);
+                buttons?.focus({ preventScroll: true });
+              };
+              toggle.id = "toggle-" + company.id;
+              name.append(toggle);
+              row.append(name);
+              for (let month = 1; month <= 12; month++)
+                row.append(
+                  amountCell(company, month, "invoice", "請求額", true),
+                );
+              const total = el("td", null, { class: "annual-total" });
+              total.append(
+                el("span", format(yearly(company.id, "invoice")), {
+                  "aria-label": company.name + "の年合計",
+                  "data-amount": yearly(company.id, "invoice"),
+                }),
+              );
+              row.append(total);
+              body.append(row);
+              if (state.expanded.has(company.id)) {
+                for (const [key, title] of detailColumns) {
+                  const detail = el("tr", null, {
+                    class: "detail " + key,
+                    "aria-label": company.name + "の" + title + "内訳",
+                  });
+                  if (key === detailColumns[0][0])
+                    detail.id = "details-" + company.id;
+                  detail.append(el("th", title, { scope: "row" }));
+                  for (let month = 1; month <= 12; month++)
+                    detail.append(amountCell(company, month, key, title));
+                  detail.append(
+                    el("td", format(yearly(company.id, key)), {
+                      class: "annual-total",
+                    }),
+                  );
+                  body.append(detail);
+                }
+              }
+            }
+          else {
+            const row = el("tr");
+            row.append(
+              el("td", "この年のデータはありません。", {
+                colspan: "14",
+                class: "empty",
+                "aria-label": "年間データなし",
+              }),
+            );
+            body.append(row);
+          }
+          table.append(body);
+          const foot = el("tfoot");
+          const all = el("tr", null, { "aria-label": "全社合計" });
+          const totalHeading = el("th", null, { scope: "row" });
+          const totalToggle = el("button", null, {
+            class: "company-toggle",
+            type: "button",
+            id: "toggle-all",
+            "aria-label": "全社合計の金額内訳",
+            "aria-expanded": state.expanded.has("__all"),
+          });
+          totalToggle.append(
+            el("span", state.expanded.has("__all") ? "▼" : "▶", {
+              class: "chevron",
+              "aria-hidden": "true",
+            }),
+            el("span", "全社合計", { class: "company-name" }),
+          );
+          totalToggle.onclick = () => {
+            state.scroll =
+              document.getElementById("annual-scroll")?.scrollLeft || 0;
+            if (state.expanded.has("__all")) state.expanded.delete("__all");
+            else state.expanded.add("__all");
+            annual();
+            document
+              .getElementById("toggle-all")
+              ?.focus({ preventScroll: true });
+          };
+          totalHeading.append(totalToggle);
+          all.append(totalHeading);
+          for (let month = 1; month <= 12; month++) {
+            const value = records
+              .filter((r) => r.year === state.year && r.month === month)
+              .reduce((sum, r) => sum + r.invoice, 0);
+            all.append(
+              el("td", format(value), {
+                "data-total-month": month,
+                "data-amount": value,
+              }),
+            );
+          }
+          const annualTotal = el("td", null, { class: "annual-total" });
+          annualTotal.append(
+            el("span", format(yearly(null, "invoice")), {
+              "aria-label": "全社の年合計",
+              "data-amount": yearly(null, "invoice"),
+            }),
+          );
+          all.append(annualTotal);
+          foot.append(all);
+          if (state.expanded.has("__all")) {
+            for (const [key, title] of detailColumns) {
+              const detail = el("tr", null, {
+                class: "detail total-detail " + key,
+                "aria-label": "全社合計の" + title + "内訳",
+              });
+              detail.append(el("th", title, { scope: "row" }));
+              for (let month = 1; month <= 12; month++) {
+                const value = records
+                  .filter((r) => r.year === state.year && r.month === month)
+                  .reduce((sum, r) => sum + r[key], 0);
+                detail.append(
+                  el("td", format(value), { "data-amount": value }),
+                );
+              }
+              detail.append(
+                el("td", format(yearly(null, key)), {
+                  class: "annual-total",
+                  "data-amount": yearly(null, key),
+                }),
+              );
+              foot.append(detail);
+            }
+          }
+          table.append(foot);
+          wrapper.append(table);
+          app.append(
+            wrapper,
+            el(
+              "p",
+              "会社名・全社合計の ▶ で金額内訳を表示 · 会社別の月別金額をクリックすると、既存の月次入力ページへ移動します。",
+              { class: "hint" },
+            ),
+          );
+          if (state.expanded.size)
+            app.append(
+              el(
+                "p",
+                "内訳は下から上に計算を追う並びです。下3行は入力額で、税抜合計との間を線で区切っています。税抜合計＋消費税−値引き＋調整額で小計、そこから源泉徴収を引くと上段の請求額になります。",
+                { class: "hint" },
+              ),
+            );
+          app.append(
+            el(
+              "p",
+              "一覧の金額は架空データです。リンク先は既存の試し入力ページのため、表示される会社・金額は異なります。",
+              { class: "hint" },
+            ),
+          );
+          wrapper.scrollLeft = state.scroll;
+        }
+        function changeYear(year) {
+          if (year < 1 || year > 9999) return;
+          state.year = year;
+          state.expanded.clear();
+          state.scroll = 0;
+          const url = new URL(window.location.href);
+          url.search = "";
+          url.searchParams.set("year", year);
+          window.history.pushState({}, "", url.href);
+          annual();
+        }
+        function render() {
+          const url = new URL(window.location.href);
+          const year = Number(url.searchParams.get("year") || 2026);
+          state.year =
+            Number.isInteger(year) && year >= 1 && year <= 9999 ? year : 2026;
+          if (url.searchParams.has("view")) {
+            url.searchParams.delete("view");
+            url.searchParams.delete("month");
+            url.searchParams.delete("company");
+            window.history.replaceState({}, "", url.href);
+          }
+          annual();
+        }
+        window.addEventListener("popstate", render);
+        render();
+      })();
+    </script>
+  </body>
+</html>

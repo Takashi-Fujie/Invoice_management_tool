@@ -1,0 +1,31 @@
+{
+  "name": "invoice-management-tool",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "npm run build && npm start",
+    "build": "tsc --noEmit && vite build",
+    "start": "node server/index.mjs",
+    "test": "vitest run",
+    "test:mock": "node --test docs/mockups/*.test.cjs",
+    "format:check": "prettier --check src server/*.mjs tests package.json tsconfig.json vitest.config.mjs"
+  },
+  "dependencies": {
+    "fastify": "5.12.7",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "prettier": "3.9.10",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "4.1.12"
+  }
+}
