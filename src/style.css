@@ -1412,3 +1412,90 @@ select {
     margin-left: auto;
   }
 }
+
+#app .backup-dialog {
+  width: min(680px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+  font: inherit;
+  box-shadow: 0 20px 70px #0004;
+}
+#app .backup-dialog::backdrop {
+  background: #10251c80;
+}
+#app .backup-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+#app .backup-heading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+#app .backup-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+#app .backup-section h3 {
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+#app .backup-section label {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+#app .backup-section input,
+#app .backup-section select {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--field-line);
+  border-radius: 6px;
+}
+#app .backup-dialog button {
+  min-height: 42px;
+  white-space: normal;
+}
+#app .backup-note {
+  color: var(--sub);
+}
+#app .backup-result,
+#app .backup-preview {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+#app .backup-result {
+  background: var(--green-soft);
+}
+#app .backup-preview {
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+}
+#app .backup-restore {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+#app .backup-dialog .mm-error {
+  white-space: normal;
+}
+@media (max-width: 600px) {
+  #app .app-header nav {
+    flex-wrap: wrap;
+  }
+  #app .backup-dialog {
+    padding: 16px;
+  }
+}

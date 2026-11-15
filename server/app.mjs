@@ -1,4 +1,5 @@
 import { annualSummary } from "../src/annual.mjs";
+import { registerBackupRoutes } from "./backup-routes.mjs";
 import Fastify from "fastify";
 import { validChecks } from "../src/checks.mjs";
 import {
@@ -37,6 +38,7 @@ export function createApp({
   path,
   port = 8787,
   staticRoot = resolve("dist"),
+  backupOptions,
 } = {}) {
   if (!path) throw Error("保存先の指定が必要です");
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -367,6 +369,7 @@ export function createApp({
   app.put("/api/month/:year/:month", async (req) =>
     save(...period(req.params.year, req.params.month), req.body),
   );
+  registerBackupRoutes(app, { db, path, port, backupOptions });
   if (existsSync(staticRoot)) {
     const assets = new Map();
     function scan(dir, prefix = "") {

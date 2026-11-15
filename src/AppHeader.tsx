@@ -1,15 +1,18 @@
 import React from "react";
 import { Icon } from "./Icon";
+import { BackupPanel } from "./BackupPanel";
 export function AppHeader({
   view,
   year,
   onAnnual,
   disabled = false,
+  dirty = false,
 }: {
   view: "monthly" | "annual";
   year: number;
   onAnnual?: () => void;
   disabled?: boolean;
+  dirty?: boolean;
 }) {
   return (
     <header className="app-header">
@@ -46,6 +49,7 @@ export function AppHeader({
             年間集計
           </a>
         )}
+        <BackupPanel dirty={dirty} disabled={disabled} />
       </nav>
     </header>
   );

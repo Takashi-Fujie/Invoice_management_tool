@@ -30,6 +30,7 @@ import {
   copyPreviousVisibility,
   isCompanyVisible,
 } from "./company-visibility.mjs";
+let databaseGeneration = "";
 async function request(year: number, month: number, data?: Data) {
   const r = await fetch(
     `/api/month/${year}/${month}`,
@@ -39,6 +40,7 @@ async function request(year: number, month: number, data?: Data) {
           headers: {
             "Content-Type": "application/json",
             "X-Invoice-Request": "1",
+            "X-Invoice-Database-Generation": databaseGeneration,
           },
           body: JSON.stringify(data),
         }
@@ -48,6 +50,7 @@ async function request(year: number, month: number, data?: Data) {
     const e = await r.json().catch(() => ({ message: "通信に失敗しました。" }));
     throw Error(e.message);
   }
+  databaseGeneration = r.headers.get("X-Invoice-Database-Generation") || "";
   return r.json();
 }
 const session = new PeriodSession(
@@ -438,6 +441,7 @@ function App() {
         year={session.year}
         onAnnual={() => void annual()}
         disabled={busy || !ready}
+        dirty={session.dirty}
       />
       <main className="mm-main workspace">
         <div className="page-toolbar">
@@ -890,7 +894,7 @@ function App() {
           税込／税抜の入力を保持し、まず税込へ換算してから対象報酬を同率ごとに合算して値引きします。交通費・立替経費は対象外。値引き額の円未満は切り捨てます。値引き中の税抜合計・消費税は値引前の内訳です。税率は10%。報酬額・交通費・立替経費は入力額の合計です。消費税は会社・月ごとに税込／税抜別に合算後、1円未満を切り捨てます。時間は小数入力（1.5＝1時間30分）。時給の報酬額は自動計算・1円未満切り上げ。案件単価・交通費・立替経費は金額を直接入力します。調整は符号付き金額を小計へ加減し、税・値引き・源泉の計算対象外です。
         </p>
         <footer className="mm-footer">
-          保存先：この端末。バックアップ・復元の実装までは架空データで検証してください。
+          保存先：この端末。通常運用の前にGoogleバックアップ・復元の検証を完了してください。
         </footer>
       </main>
       <SaveBar
