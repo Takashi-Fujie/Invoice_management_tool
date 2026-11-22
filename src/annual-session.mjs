@@ -1,3 +1,4 @@
+import { openMonthlyPage } from "./page-navigation.mjs";
 export function annualYear(href, today = new Date()) {
   const values = new URL(href).searchParams.getAll("year");
   if (values.length === 1 && /^[0-9]{1,4}$/.test(values[0])) {
@@ -63,9 +64,5 @@ export class AnnualSession {
   }
 }
 export async function openAnnual(session, navigate, choice) {
-  if (session.busy || session.navigating) return "busy";
-  if (session.dirty && !choice) return "confirm";
-  if (choice === "save") await session.save();
-  navigate(`/annual.html?year=${session.year}`);
-  return "changed";
+  return openMonthlyPage(session, navigate, "annual", choice);
 }

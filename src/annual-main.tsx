@@ -6,6 +6,7 @@ import type { AnnualData } from "./AnnualSummary";
 import "./style.css";
 import "./annual.css";
 import { AppHeader } from "./AppHeader";
+import { AppFooter } from "./AppFooter";
 import { PeriodControl } from "./PeriodControl";
 import { detailMoney } from "./presentation.mjs";
 const session = new AnnualSession(
@@ -126,10 +127,10 @@ function AnnualApp() {
           会社別の月別金額をクリックすると、その月の入力ページへ移動します。
         </p>
       </main>
-      <footer className="annual-footer">
+      <AppFooter>
         <span>保存済みの月次入力から集計しています</span>
         <span>単位：円</span>
-      </footer>
+      </AppFooter>
     </div>
   );
 }

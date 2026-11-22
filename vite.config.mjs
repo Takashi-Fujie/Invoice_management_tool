@@ -1,6 +1,12 @@
 import { defineConfig } from "vite";
 export default defineConfig({
   build: {
-    rollupOptions: { input: { main: "index.html", annual: "annual.html" } },
+    rollupOptions: {
+      input: {
+        main: "index.html",
+        annual: "annual.html",
+        backup: "backup.html",
+      },
+    },
   },
 });

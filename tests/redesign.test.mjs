@@ -225,3 +225,15 @@ test("S35-T02：当月集計の11金額列をカードと揃え、税込金額�
   ]);
   expect(data).toEqual(before);
 });
+
+test("S35-T07：すべての画面のヘッダーからGitHubを別タブで開ける", () => {
+  for (const view of ["monthly", "annual", "backup"]) {
+    const html = render(AppHeader, { view, year: 2026, month: 11 });
+    expect(html).toContain(
+      'href="https://github.com/Takashi-Fujie/Invoice_management_tool"',
+    );
+    expect(html).toMatch(
+      /target="_blank"[^>]*rel="noopener noreferrer"[^>]*>GitHub/,
+    );
+  }
+});

@@ -751,6 +751,23 @@ select {
   margin-top: 12px;
   line-height: 1.7;
 }
+#app .app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  flex-shrink: 0;
+  padding: 5px 20px;
+  color: var(--sub);
+  font-size: 10px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+#app .app-version {
+  margin-left: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 #app .save-dock {
   display: flex;
   align-items: center;
@@ -1204,10 +1221,8 @@ select {
     min-width: 165px;
     width: 165px;
   }
-  #app .annual-footer {
-    font-size: 9px;
-    padding: 9px 10px;
-    gap: 16px;
+  #app .app-footer {
+    padding: 5px 10px;
   }
   #app dialog {
     padding: 18px;
@@ -1413,47 +1428,43 @@ select {
   }
 }
 
-#app .backup-dialog {
-  width: min(680px, calc(100vw - 24px));
-  max-height: calc(100dvh - 32px);
-  overflow-y: auto;
-  color: var(--ink);
+#app .backup-workspace {
+  max-width: 1160px;
+  padding-bottom: 48px;
+}
+#app .backup-card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 24px;
-  font: inherit;
-  box-shadow: 0 20px 70px #0004;
+  margin-top: 20px;
+  min-width: 0;
 }
-#app .backup-dialog::backdrop {
-  background: #10251c80;
-}
-#app .backup-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-#app .backup-heading h2 {
-  margin: 0;
+#app .backup-card h2 {
+  margin: 0 0 16px;
   font-size: 18px;
 }
-#app .backup-section {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
+#app .backup-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
 }
-#app .backup-section h3 {
-  font-size: 14px;
-  margin: 0 0 10px;
+#app .backup-card button {
+  min-height: 44px;
+  white-space: normal;
 }
-#app .backup-section label {
+#app .app-header [aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+#app .backup-card label {
   display: grid;
   gap: 6px;
   margin: 12px 0;
 }
-#app .backup-section input,
-#app .backup-section select {
+#app .backup-card input,
+#app .backup-card select {
   width: 100%;
   min-height: 42px;
   padding: 8px;
@@ -1461,10 +1472,6 @@ select {
   color: var(--ink);
   border: 1px solid var(--field-line);
   border-radius: 6px;
-}
-#app .backup-dialog button {
-  min-height: 42px;
-  white-space: normal;
 }
 #app .backup-note {
   color: var(--sub);
@@ -1488,14 +1495,126 @@ select {
   border-color: var(--danger);
   color: var(--danger);
 }
-#app .backup-dialog .mm-error {
+#app .backup-workspace .mm-error {
   white-space: normal;
 }
 @media (max-width: 600px) {
   #app .app-header nav {
     flex-wrap: wrap;
   }
-  #app .backup-dialog {
-    padding: 16px;
+  #app .backup-card {
+    padding: 18px;
+  }
+  #app .backup-actions {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+#app .backup-latest {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 12px 0;
+}
+#app .backup-latest dt {
+  color: var(--sub);
+}
+#app .backup-latest dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  #app .backup-latest {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  #app .backup-latest dd {
+    margin-bottom: 8px;
+  }
+}
+
+#app .repository-link {
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+#app .repository-link:hover {
+  color: var(--green);
+  background: var(--green-soft);
+}
+#app .backup-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 18px;
+  font-size: 13px;
+}
+#app .backup-history-table th {
+  text-align: left;
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 12px;
+  background: var(--bg);
+}
+#app .backup-history-table th:first-child {
+  width: 23%;
+}
+#app .backup-history-table th:nth-child(2) {
+  width: 43%;
+}
+#app .backup-history-table td {
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+#app .backup-record-status {
+  display: inline-block;
+  margin-top: 6px;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+}
+#app .backup-record-status.confirmed {
+  color: var(--green);
+  background: var(--green-soft);
+}
+#app .backup-record-status.unconfirmed {
+  color: var(--ink);
+  background: var(--amber-soft);
+}
+@media (max-width: 600px) {
+  #app .backup-history-table,
+  #app .backup-history-table tbody,
+  #app .backup-history-table tr,
+  #app .backup-history-table td {
+    display: block;
+    width: 100%;
+  }
+  #app .backup-history-table thead {
+    display: none;
+  }
+  #app .backup-history-table tr {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  #app .backup-history-table td {
+    border: 0;
+    padding: 6px 0;
+  }
+  #app .backup-history-table td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 11px;
+    color: var(--sub);
+    font-weight: 600;
+    margin-bottom: 2px;
   }
 }

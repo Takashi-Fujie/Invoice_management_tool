@@ -1,4 +1,4 @@
-import { openAnnual } from "./annual-session.mjs";
+import { openMonthlyPage } from "./page-navigation.mjs";
 import { isNonFeeType } from "./reward.mjs";
 import React, { useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
@@ -19,6 +19,7 @@ import { PreviousMonthAction, DeleteRowButton } from "./DetailActions";
 import { monthSummary } from "./summary.mjs";
 import { MonthlySummary } from "./MonthlySummary";
 import { SaveBar } from "./SaveBar";
+import { AppFooter } from "./AppFooter";
 import { AppHeader } from "./AppHeader";
 import { PeriodControl } from "./PeriodControl";
 import { CompanyAmounts } from "./CompanyAmounts";
@@ -268,19 +269,22 @@ function DecimalInput({
   );
 }
 function App() {
-  const [pendingAnnual, setPendingAnnual] = useState(false);
+  const [pendingPage, setPendingPage] = useState<"annual" | "backup" | null>(
+    null,
+  );
   const leaving = useRef(false);
-  async function annual(choice?: string) {
+  async function changePage(view: "annual" | "backup", choice?: string) {
     await run(async () => {
-      const result = await openAnnual(
+      const result = await openMonthlyPage(
         session,
         (url: string) => {
           leaving.current = true;
           window.location.assign(url);
         },
+        view,
         choice,
       );
-      if (result === "confirm") setPendingAnnual(true);
+      if (result === "confirm") setPendingPage(view);
     });
   }
   const [managerOpen, setManagerOpen] = useState(false);
@@ -439,9 +443,10 @@ function App() {
       <AppHeader
         view="monthly"
         year={session.year}
-        onAnnual={() => void annual()}
+        onAnnual={() => void changePage("annual")}
+        onBackup={() => void changePage("backup")}
+        month={session.month}
         disabled={busy || !ready}
-        dirty={session.dirty}
       />
       <main className="mm-main workspace">
         <div className="page-toolbar">
@@ -894,7 +899,7 @@ function App() {
           税込／税抜の入力を保持し、まず税込へ換算してから対象報酬を同率ごとに合算して値引きします。交通費・立替経費は対象外。値引き額の円未満は切り捨てます。値引き中の税抜合計・消費税は値引前の内訳です。税率は10%。報酬額・交通費・立替経費は入力額の合計です。消費税は会社・月ごとに税込／税抜別に合算後、1円未満を切り捨てます。時間は小数入力（1.5＝1時間30分）。時給の報酬額は自動計算・1円未満切り上げ。案件単価・交通費・立替経費は金額を直接入力します。調整は符号付き金額を小計へ加減し、税・値引き・源泉の計算対象外です。
         </p>
         <footer className="mm-footer">
-          保存先：この端末。通常運用の前にGoogleバックアップ・復元の検証を完了してください。
+          保存先：この端末。通常運用の前にJSONファイルのバックアップ・復元の検証を完了してください。
         </footer>
       </main>
       <SaveBar
@@ -907,6 +912,7 @@ function App() {
         invoice={summary.total.invoice}
         onSave={() => void run(() => session.save())}
       />
+      <AppFooter />
       {managerOpen && (
         <Modal
           title="会社の表示・追加"
@@ -969,29 +975,34 @@ function App() {
           </form>
         </Modal>
       )}
-      {pendingAnnual && (
+      {pendingPage && (
         <Modal
           title="変更を保存しますか？"
           onCancel={() => {
-            if (!busy) setPendingAnnual(false);
+            if (!busy) setPendingPage(null);
           }}
         >
           <p>
             {session.year}年{session.month}
-            月の全社分の変更が未保存です。年間集計へ移動します。
+            月の全社分の変更が未保存です。
+            {pendingPage === "backup" ? "バックアップ・復元" : "年間集計"}
+            へ移動します。
           </p>
           {error && <p role="alert">{error}</p>}
           <div className="mm-dialog-actions">
-            <button disabled={busy} onClick={() => setPendingAnnual(false)}>
+            <button disabled={busy} onClick={() => setPendingPage(null)}>
               移動を中止
             </button>
-            <button disabled={busy} onClick={() => void annual("discard")}>
+            <button
+              disabled={busy}
+              onClick={() => void changePage(pendingPage!, "discard")}
+            >
               破棄して移動
             </button>
             <button
               disabled={busy || !valid}
               className="mm-primary"
-              onClick={() => void annual("save")}
+              onClick={() => void changePage(pendingPage!, "save")}
             >
               保存して移動
             </button>

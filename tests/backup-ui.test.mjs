@@ -1,144 +1,194 @@
-import { test, expect } from "vitest";
+import { test, expect, vi } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { BackupSession } from "../src/backup-session.mjs";
 import { BackupView } from "../src/BackupPanel.tsx";
-
-test("S20-T06/T10：未保存時は実行せず、通信失敗後も保存先と再試行IDを保持する", async () => {
+const snapshot = {
+  manifest: {
+    backupId: "id",
+    createdAt: "2026-11-22T03:00:00Z",
+    counts: { clients: 1 },
+  },
+  body: {},
+};
+const saved = {
+  method: "directory",
+  fileName: "backup.json",
+  location: "請求バックアップ/backup.json",
+};
+function setup() {
   const calls = [];
-  let fail = true;
-  const model = new BackupSession(
-    async (action, body) => {
-      calls.push({ action, body });
-      if (fail) throw Error("通信に失敗しました。");
-      return { title: "完了", counts: { clients: 1 } };
-    },
-    () => "retry-id",
-  );
-  model.setDestination(
-    "https://docs.google.com/spreadsheets/d/test-spreadsheet/edit",
-  );
-  await model.backup(true);
-  expect(calls).toHaveLength(0);
-  expect(model.error).toContain("保存");
-  await model.backup(false);
-  expect(model.busy).toBe(false);
-  expect(model.error).toContain("通信");
-  const first = calls[0].body.requestId;
-  fail = false;
-  await model.backup(false);
-  expect(calls[1].body.requestId).toBe(first);
-  expect(model.result.title).toBe("完了");
-  expect(model.destination).toContain("test-spreadsheet");
-});
-test("S20-T10/T11：一覧・内容確認・実行を分け、保存先や選択の変更で古い確認を破棄する", async () => {
-  const calls = [];
-  const model = new BackupSession(async (action, body) => {
+  const request = vi.fn(async (action, body) => {
     calls.push({ action, body });
-    if (action === "list")
+    if (action === "export") return { snapshot, fileName: "backup.json" };
+    if (action === "record")
       return {
-        backups: [
-          { sheetId: 1, title: "保存済み", createdAt: "2026-11-03T03:30:00Z" },
-        ],
+        lastBackup: {
+          ...saved,
+          createdAt: snapshot.manifest.createdAt,
+          savedAt: "2026-11-22T03:01:00Z",
+          counts: { clients: 1 },
+        },
       };
     if (action === "preview")
       return {
         previewToken: "preview",
-        createdAt: "2026-11-03T03:30:00Z",
+        createdAt: snapshot.manifest.createdAt,
         counts: { clients: 1 },
       };
-    return { restored: true };
+    return { mode: "file", lastBackup: null };
   });
-  model.setDestination("test-spreadsheet");
-  await model.list();
-  model.selectSheet("1");
+  const write = vi.fn(async () => saved);
+  const prepare = vi.fn(async () => write);
+  const model = new BackupSession(request, prepare);
+  return { model, calls, request, prepare, write };
+}
+const file = (name = "backup.json", text = JSON.stringify(snapshot)) =>
+  new File([text], name, { type: "application/json" });
+
+test("S20-T06/T08/T10：未保存時は保存画面も開かず、操作直後に保存先を選び書込み後に記録する", async () => {
+  const { model, calls, prepare, write } = setup();
+  await model.backup(true);
+  expect(prepare).not.toHaveBeenCalled();
+  expect(calls).toHaveLength(0);
+  const work = model.backup(false);
+  expect(prepare).toHaveBeenCalledTimes(1);
+  await work;
+  expect(write).toHaveBeenCalledWith(snapshot, "backup.json");
+  expect(calls.map((c) => c.action)).toEqual(["export", "record"]);
+  expect(model.lastBackup.location).toBe(saved.location);
+  expect(model.result.method).toBe("directory");
+});
+
+test("S20-T06/T19：選択取消・書込み失敗で成功と履歴を残さず、再試行できる", async () => {
+  const { model, prepare, write, calls } = setup();
+  prepare.mockRejectedValueOnce(new DOMException("cancel", "AbortError"));
+  await model.backup(false);
+  expect(calls).toHaveLength(0);
+  expect(model.result).toBeNull();
+  expect(model.error).toBe("");
+  write.mockRejectedValueOnce(Error("ファイルを保存できません。"));
+  await model.backup(false);
+  expect(calls.map((c) => c.action)).toEqual(["export"]);
+  expect(model.lastBackup).toBeNull();
+  expect(model.result).toBeNull();
+  expect(model.error).toContain("保存");
+  await model.backup(false);
+  expect(model.lastBackup.location).toBe(saved.location);
+});
+
+test("S20-T10：処理中の二重保存・閉じる操作を止める状態を保つ", async () => {
+  const { model, prepare, calls } = setup();
+  let finish;
+  prepare.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const work = model.backup(false);
+  expect(model.busy).toBe(true);
+  await model.backup(false);
+  expect(prepare).toHaveBeenCalledTimes(1);
+  finish(async () => saved);
+  await work;
+  expect(calls.map((c) => c.action)).toEqual(["export", "record"]);
+  expect(model.busy).toBe(false);
+});
+
+test("S20-T07/T11/T15：選択と確認と復元を分け、選択変更で古い確認を破棄する", async () => {
+  const { model, calls } = setup();
+  model.selectFile(file());
   await model.check(false);
   expect(model.preview.previewToken).toBe("preview");
   expect(calls.some((c) => c.action === "restore")).toBe(false);
-  model.setDestination("other-spreadsheet");
+  model.selectFile(file("other.json"));
   expect(model.preview).toBeNull();
-  expect(model.backups).toHaveLength(0);
   await model.restore(false);
   expect(calls.some((c) => c.action === "restore")).toBe(false);
+  model.selectFile(file("broken.json", "壊れたJSON"));
+  await model.check(false);
+  expect(model.preview).toBeNull();
+  expect(model.error).toContain("JSON");
 });
-test("S20-T10：未保存・処理中は書込みを止め、完了・失敗・初期設定を読める表示にする", () => {
-  const state = new BackupSession(async () => ({}));
-  state.connected = true;
-  state.configured = true;
-  state.destination = "test-spreadsheet";
+
+test("S20-T07/T10：サイズ超過・未保存時の確認を送信前に拒否する", async () => {
+  const { model, calls } = setup();
+  model.selectFile({
+    name: "huge.json",
+    size: 20 * 1024 * 1024 + 1,
+    text: vi.fn(),
+  });
+  await model.check(false);
+  expect(model.error).toContain("20");
+  expect(calls).toHaveLength(0);
+  model.selectFile(file());
+  await model.check(true);
+  expect(calls).toHaveLength(0);
+});
+
+test("S20-T18/T19：最新日時・保存場所を読込み、記録失敗時は前回の履歴を保つ", async () => {
+  const { model, request } = setup();
+  request.mockResolvedValueOnce({
+    mode: "file",
+    lastBackup: {
+      ...saved,
+      createdAt: snapshot.manifest.createdAt,
+      savedAt: "2026-11-22T03:01:00Z",
+    },
+  });
+  await model.open();
+  const previous = structuredClone(model.lastBackup);
+  request.mockImplementationOnce(async () => ({
+    snapshot,
+    fileName: "backup.json",
+  }));
+  request.mockRejectedValueOnce(Error("記録失敗"));
+  await model.backup(false);
+  expect(model.lastBackup).toEqual(previous);
+  expect(model.error).toContain("記録");
+});
+
+test("S20-T10/T13/T17/T18：Google設定欄を表示せず、最新日時・保存場所と同期確認の案内を表示する", () => {
+  const { model } = setup();
+  model.lastBackup = {
+    ...saved,
+    createdAt: snapshot.manifest.createdAt,
+    savedAt: "2026-11-22T03:01:00Z",
+    counts: { clients: 1 },
+  };
   const html = renderToStaticMarkup(
-    React.createElement(BackupView, {
-      state,
-      dirty: true,
-      onDestination() {},
-      onSheet() {},
-      onConfigure() {},
-      onConnect() {},
-      onBackup() {},
-      onList() {},
-      onCheck() {},
-      onRestore() {},
-      onClose() {},
-    }),
+    React.createElement(BackupView, { state: model, dirty: true }),
   );
   expect(html).toContain("先に月次入力を保存");
-  expect(html).toContain("保存済みの全会社・全年月");
-  expect(html).toContain("今すぐバックアップ");
-  expect(html).toMatch(/disabled=""[^>]*>今すぐバックアップ/);
+  expect(html).toContain("バックアップファイルを保存");
+  expect(html).toContain("バックアップリスト");
+  expect(html).toContain("請求バックアップ/backup.json");
+  expect(html).toContain("2026/11/22");
+  expect(html).not.toMatch(/設定JSON|Googleログイン|スプレッドシート/);
+  expect(html).toContain("同期");
+  expect(html).toMatch(/disabled=""[^>]*>バックアップファイルを保存/);
 });
 
-test("S20-T05/T06：同名時の拒否後は新しい処理で実行し直せる", async () => {
-  let attempt = 0;
-  const ids = [];
-  const model = new BackupSession(
-    async (_action, body) => {
-      ids.push(body.requestId);
-      if (attempt++ === 0)
-        throw Object.assign(Error("同じ日時"), { statusCode: 409 });
-      return {};
-    },
-    () => `id-${attempt}`,
-  );
-  model.setDestination("test-spreadsheet");
+test("S20-T22：読み込んだ複数履歴を保持し、保存後は新しいリストをすぐ表示する", async () => {
+  const { model, request } = setup();
+  const old = {
+    ...saved,
+    createdAt: snapshot.manifest.createdAt,
+    savedAt: "2026-11-21T03:00:00Z",
+  };
+  request.mockResolvedValueOnce({
+    lastBackup: old,
+    backups: [old, { ...old, fileName: "older.json" }],
+  });
+  await model.open();
+  expect(model.backups).toHaveLength(2);
+  request.mockResolvedValueOnce({ snapshot, fileName: "new.json" });
+  request.mockResolvedValueOnce({
+    lastBackup: { ...old, fileName: "new.json" },
+    backups: [{ ...old, fileName: "new.json" }, ...model.backups],
+  });
   await model.backup(false);
-  await model.backup(false);
-  expect(ids[0]).not.toBe(ids[1]);
-});
-
-test("S20-T13/T15：保存先はGoogle選択だけとし、再接続後に以前の先と確認を残さない", async () => {
-  const state = new BackupSession(async () => ({
-    configured: true,
-    connected: true,
-    destination: "https://docs.google.com/spreadsheets/d/new-spreadsheet/edit",
-    selectedFile: { name: "選択した架空バックアップ用" },
-    connectionId: "new-connection",
-  }));
-  state.configured = true;
-  state.connected = true;
-  state.setDestination("old-spreadsheet");
-  state.preview = { previewToken: "old-preview" };
-  state.result = { title: "old-result" };
-  await state.open();
-  expect(state.destination).toContain("new-spreadsheet");
-  expect(state.preview).toBeNull();
-  expect(state.result).toBeNull();
-  const html = renderToStaticMarkup(
-    React.createElement(BackupView, {
-      state,
-      dirty: false,
-      onDestination() {},
-      onSheet() {},
-      onConfigure() {},
-      onConnect() {},
-      onBackup() {},
-      onList() {},
-      onCheck() {},
-      onRestore() {},
-      onClose() {},
-    }),
-  );
-  expect(html).not.toContain('type="url"');
-  expect(html).toContain("Googleで保存先を選び直す");
-  expect(html).toContain("選択した架空バックアップ用");
-  expect(html).not.toContain("OAuthクライアントを作成してください");
+  expect(model.backups).toHaveLength(3);
+  expect(model.backups[0].fileName).toBe("new.json");
 });

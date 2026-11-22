@@ -1,19 +1,25 @@
 import React from "react";
 import { Icon } from "./Icon";
-import { BackupPanel } from "./BackupPanel";
+import { pageUrl } from "./page-navigation.mjs";
 export function AppHeader({
   view,
   year,
+  month = 1,
   onAnnual,
+  onBackup,
   disabled = false,
-  dirty = false,
 }: {
-  view: "monthly" | "annual";
+  view: "monthly" | "annual" | "backup";
   year: number;
+  month?: number;
   onAnnual?: () => void;
+  onBackup?: () => void;
   disabled?: boolean;
-  dirty?: boolean;
 }) {
+  const linkProps = (target: string) => ({
+    href: disabled ? undefined : pageUrl(target, year, month),
+    "aria-disabled": disabled || undefined,
+  });
   return (
     <header className="app-header">
       <div className="brand">
@@ -23,34 +29,55 @@ export function AppHeader({
         <strong>請求管理ツール</strong>
       </div>
       <nav aria-label="画面切替">
-        {view === "annual" ? (
-          <a href={`/?year=${year}&month=1`}>
-            <Icon name="month" size={14} />
-            月次入力
-          </a>
-        ) : (
+        {view === "monthly" ? (
           <button className="active" aria-current="page">
             <Icon name="month" size={14} />
             月次入力
           </button>
+        ) : (
+          <a {...linkProps("monthly")}>
+            <Icon name="month" size={14} />
+            月次入力
+          </a>
         )}
         {view === "monthly" ? (
           <button disabled={disabled} onClick={onAnnual}>
             <Icon name="annual" size={14} />
             年間集計
           </button>
+        ) : view === "annual" ? (
+          <button className="active" aria-current="page">
+            <Icon name="annual" size={14} />
+            年間集計
+          </button>
         ) : (
-          <a
-            className="active"
-            aria-current="page"
-            href={`/annual.html?year=${year}`}
-          >
+          <a {...linkProps("annual")}>
             <Icon name="annual" size={14} />
             年間集計
           </a>
         )}
-        <BackupPanel dirty={dirty} disabled={disabled} />
+        {view === "backup" ? (
+          <button className="active" aria-current="page" disabled={disabled}>
+            バックアップ・復元
+          </button>
+        ) : view === "monthly" ? (
+          <button disabled={disabled} onClick={onBackup}>
+            バックアップ・復元
+          </button>
+        ) : (
+          <a {...linkProps("backup")}>バックアップ・復元</a>
+        )}
       </nav>
+      <div className="header-end">
+        <a
+          className="repository-link"
+          href="https://github.com/Takashi-Fujie/Invoice_management_tool"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          GitHub
+        </a>
+      </div>
     </header>
   );
 }

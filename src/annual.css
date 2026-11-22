@@ -177,16 +177,6 @@
 #app .annual-table tfoot th:first-child {
   background: var(--green-soft);
 }
-#app .annual-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 20px;
-  color: var(--sub);
-  font-size: 10px;
-  border-top: 1px solid var(--line);
-  background: var(--surface);
-}
 #app .annual-legend {
   display: flex;
   align-items: center;

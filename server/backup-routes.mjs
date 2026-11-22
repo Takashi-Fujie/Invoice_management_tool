@@ -1,41 +1,30 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, chmodSync, lstatSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { captureBackup, restoreBackup, verifyBackup } from "./backup.mjs";
-import { GoogleSheetsBackup, spreadsheetId } from "./google-sheets.mjs";
-import {
-  GoogleConnection,
-  readPrivateJSON,
-  savePrivateJSON,
-} from "./google-auth.mjs";
+import { readPrivateJSON, savePrivateJSON } from "./private-json.mjs";
+import { BackupHistory } from "./backup-history.mjs";
+import { backupFileName, MAX_BACKUP_BYTES } from "../src/backup-file-name.mjs";
 
 const fail = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
-export function registerBackupRoutes(
-  app,
-  { db, path, port, backupOptions = {} },
-) {
+export function registerBackupRoutes(app, { db, path }) {
   const directory =
+    path === ":memory:" ? null : join(dirname(path), "backup-state");
+  // 以前の復元世代も読み、変更前の画面からの保存を再起動後も拒否する。
+  const legacyDirectory =
     path === ":memory:" ? null : join(dirname(path), "google-backup");
-  const auth = backupOptions.auth || new GoogleConnection({ directory, port });
-  const google =
-    backupOptions.google ||
-    new GoogleSheetsBackup({ getAccessToken: (id) => auth.getAccessToken(id) });
   const previews = new Map(),
-    jobs = new Map();
-  let preferences = {},
-    preferenceWarning = null,
+    exports = new Map();
+  const history = new BackupHistory(directory);
+  let recordWarning = "",
     busy = false,
     generation = null;
   try {
-    preferences = readPrivateJSON(directory, "preferences.json") || {};
-  } catch {
-    preferenceWarning =
-      "保存先の設定を読み取れません。Googleで保存先を選び直してください。";
-  }
-  try {
-    const saved = readPrivateJSON(directory, "database-generation.json");
+    const saved =
+      readPrivateJSON(directory, "database-generation.json") ||
+      readPrivateJSON(legacyDirectory, "database-generation.json");
     if (saved)
       generation =
         typeof saved.generation === "string" &&
@@ -44,8 +33,8 @@ export function registerBackupRoutes(
           : randomUUID();
   } catch {
     generation = randomUUID();
-    preferenceWarning =
-      "復元操作の設定を読み取れません。月次画面を再読み込みしてから操作してください。";
+    recordWarning =
+      "復元操作の記録を読み取れません。月次画面を再読み込みしてください。";
   }
   const fingerprint = () =>
     captureBackup(db, { now: new Date(0), id: "fingerprint" }).manifest
@@ -76,147 +65,121 @@ export function registerBackupRoutes(
       });
     if (generation) reply.header("X-Invoice-Database-Generation", generation);
   });
-  const context = (req, { destination = true } = {}) => {
-    const selected = auth.selectedFile();
-    if (!auth.status().connected || !selected)
-      throw fail("Googleで保存先を選んでください。", 401);
-    const key = auth.selectionKey();
-    if (!key || req.body?.connectionId !== key)
-      throw fail(
-        "Googleの接続先が変わりました。画面を開き直して操作してください。",
-        409,
-      );
-    if (destination && spreadsheetId(req.body?.destination) !== selected.id)
-      throw fail("Googleで選択した保存先だけを操作できます。", 403);
-    return { destination: selected.id, connectionId: key };
-  };
-  app.get("/api/backup/status", async () => {
-    const state = auth.status(),
-      selected = state.connected ? auth.selectedFile() : null;
-    return {
-      ...state,
-      ...(preferenceWarning ? { preferenceWarning } : {}),
-      connectionId: selected ? auth.selectionKey() : null,
-      selectedFile: selected,
-      destination: selected
-        ? `https://docs.google.com/spreadsheets/d/${selected.id}/edit`
-        : "",
-      lastSuccess:
-        selected &&
-        preferences.connectionId === auth.selectionKey() &&
-        preferences.destination === selected.id
-          ? preferences.lastSuccess
-          : null,
-    };
-  });
-  app.post("/api/google/configure", async (req) =>
+  app.get("/api/backup/status", async () => ({
+    mode: "file",
+    lastBackup: history.records[0] || null,
+    backups: history.records,
+    recordWarning: [history.warning, recordWarning].filter(Boolean).join(" "),
+  }));
+  app.post("/api/backup/export", async (_req, reply) =>
     exclusive(async () => {
-      auth.configure(req.body);
-      return auth.status();
+      const snapshot = verifyBackup(captureBackup(db));
+      const body = JSON.stringify(snapshot);
+      if (Buffer.byteLength(body) > MAX_BACKUP_BYTES - 32)
+        throw fail(
+          "バックアップのサイズが20MiBを超えています。データを切り捨てず処理を中止しました。",
+        );
+      const now = Date.now();
+      for (const [key, job] of exports)
+        if (job.expires < now) exports.delete(key);
+      if (exports.size >= 20) exports.delete(exports.keys().next().value);
+      exports.set(snapshot.manifest.backupId, {
+        manifest: snapshot.manifest,
+        expires: now + 30 * 60000,
+      });
+      reply.header(
+        "X-Invoice-Backup-File",
+
+        encodeURIComponent(
+          backupFileName(
+            snapshot.manifest.createdAt,
+            snapshot.manifest.backupId,
+          ),
+        ),
+      );
+      return snapshot;
     }),
   );
-  app.post("/api/google/start", async (req) =>
-    exclusive(() => auth.start(req.body?.returnTo)),
-  );
-  app.get("/api/google/callback", async (req, reply) => {
-    const target = await exclusive(() => auth.finish(req.query));
-    return reply.redirect(target);
-  });
-  app.post("/api/backup/run", async (req) =>
+  app.post("/api/backup/record", async (req) =>
     exclusive(async () => {
-      const { destination, connectionId } = context(req),
-        requestId = req.body?.requestId;
-      if (
-        typeof requestId !== "string" ||
-        !/^[a-zA-Z0-9_-]{8,100}$/.test(requestId)
-      )
-        throw fail("バックアップの実行情報を確認してください。");
-      const expired = Date.now() - 30 * 60000;
-      for (const [key, job] of jobs)
-        if (job.started < expired) jobs.delete(key);
-      if (jobs.size >= 20 && !jobs.has(requestId))
+      const { backupId, fileName, location, method } = req.body || {};
+      const existing = history.records.find((record) => record.id === backupId);
+      if (existing) {
+        if (
+          existing.fileName !== fileName ||
+          existing.location !== location ||
+          existing.method !== method
+        )
+          throw fail("保存済みの記録と異なる内容は再利用できません。", 409);
+        return { lastBackup: history.records[0], backups: history.records };
+      }
+      const job = exports.get(backupId);
+      if (!job || job.expires < Date.now())
         throw fail(
-          "処理回数が多すぎます。しばらく待ってから再実行してください。",
-          429,
-        );
-      let job = jobs.get(requestId);
-      if (
-        job &&
-        (job.destination !== destination || job.connectionId !== connectionId)
-      )
-        throw fail(
-          "再試行では保存先を変更できません。新しいバックアップとして実行してください。",
+          "バックアップの記録期限が切れました。保存したファイルは保持されています。",
           409,
         );
-      if (!job) {
-        job = {
-          destination,
-          connectionId,
-          snapshot: captureBackup(db),
-          started: Date.now(),
+      if (
+        typeof fileName !== "string" ||
+        fileName.length > 255 ||
+        !fileName.endsWith(".json") ||
+        /[\/\\\x00-\x1f\x7f]/.test(fileName) ||
+        typeof location !== "string" ||
+        !location.trim() ||
+        location.length > 1024 ||
+        /[\x00-\x1f\x7f]/.test(location) ||
+        !["directory", "file", "download"].includes(method)
+      )
+        throw fail("保存場所の記録内容を確認してください。");
+      const record = {
+        createdAt: job.manifest.createdAt,
+        savedAt: new Date().toISOString(),
+        counts: job.manifest.counts,
+        fileName,
+        location: location.trim(),
+        method,
+      };
+      history.append(backupId, record);
+      exports.delete(backupId);
+      return { lastBackup: history.records[0], backups: history.records };
+    }),
+  );
+  app.post(
+    "/api/backup/preview",
+    { bodyLimit: MAX_BACKUP_BYTES },
+    async (req) =>
+      exclusive(async () => {
+        if (req.body?.previousToken) previews.delete(req.body.previousToken);
+        let snapshot;
+        try {
+          snapshot = verifyBackup(req.body?.backup);
+        } catch {
+          throw fail(
+            "バックアップJSONの内容・バージョン・整合性を確認できません。現在のDBは変更していません。",
+          );
+        }
+        for (const [key, preview] of previews)
+          if (preview.expires < Date.now()) previews.delete(key);
+        if (previews.size >= 5) previews.delete(previews.keys().next().value);
+        const previewToken = randomUUID();
+        previews.set(previewToken, {
+          snapshot,
+          fingerprint: fingerprint(),
+          expires: Date.now() + 10 * 60000,
+        });
+        return {
+          previewToken,
+          createdAt: snapshot.manifest.createdAt,
+          counts: snapshot.manifest.counts,
         };
-        jobs.set(requestId, job);
-      }
-      const result = await google.upload(destination, job.snapshot);
-      preferences = {
-        destination,
-        connectionId,
-        lastSuccess: {
-          title: result.title,
-          createdAt: result.manifest.createdAt,
-          counts: result.manifest.counts,
-          url: result.url,
-        },
-      };
-      savePrivateJSON(directory, "preferences.json", preferences);
-      return {
-        ...result,
-        manifest: undefined,
-        createdAt: result.manifest.createdAt,
-        counts: result.manifest.counts,
-      };
-    }),
-  );
-  app.post("/api/backup/list", async (req) =>
-    exclusive(async () => ({
-      backups: await google.list(context(req).destination),
-    })),
-  );
-  app.post("/api/backup/preview", async (req) =>
-    exclusive(async () => {
-      const selection = context(req);
-      const snapshot = verifyBackup(
-        await google.download(selection.destination, req.body?.sheetId),
-      );
-      for (const [key, preview] of previews)
-        if (preview.expires < Date.now()) previews.delete(key);
-      if (previews.size >= 5) previews.delete(previews.keys().next().value);
-      const previewToken = randomUUID();
-      previews.set(previewToken, {
-        ...selection,
-        snapshot,
-        fingerprint: fingerprint(),
-        expires: Date.now() + 10 * 60000,
-      });
-      return {
-        previewToken,
-        createdAt: snapshot.manifest.createdAt,
-        counts: snapshot.manifest.counts,
-      };
-    }),
+      }),
   );
   app.post("/api/backup/restore", async (req) =>
     exclusive(async () => {
-      const selection = context(req, { destination: false });
       const preview = previews.get(req.body?.previewToken);
-      if (
-        !preview ||
-        preview.expires < Date.now() ||
-        preview.connectionId !== selection.connectionId ||
-        preview.destination !== selection.destination
-      )
+      if (!preview || preview.expires < Date.now())
         throw fail(
-          "復元内容の確認が切れました。バックアップを選んで確認し直してください。",
+          "復元内容の確認が切れました。ファイルを選んで確認し直してください。",
           409,
         );
       if (fingerprint() !== preview.fingerprint)
@@ -227,11 +190,17 @@ export function registerBackupRoutes(
       if (path !== ":memory:") {
         const local = join(dirname(path), "restore-backups");
         mkdirSync(local, { recursive: true, mode: 0o700 });
+        if (lstatSync(local).isSymbolicLink())
+          throw fail(
+            "復元前の退避先を確認してください。現在のDBは変更していません。",
+          );
+        chmodSync(local, 0o700);
         const backupPath = join(
           local,
-          `before-restore-${Date.now()}-${randomUUID()}.sqlite`,
+          "before-restore-" + Date.now() + "-" + randomUUID() + ".sqlite",
         );
         db.prepare("VACUUM INTO ?").run(backupPath);
+        chmodSync(backupPath, 0o600);
         const copy = new DatabaseSync(backupPath, { readOnly: true });
         try {
           if (
@@ -255,7 +224,6 @@ export function registerBackupRoutes(
         expectedChecksum: preview.fingerprint,
       });
       previews.clear();
-      jobs.clear();
       return {
         restored: true,
         createdAt: preview.snapshot.manifest.createdAt,

@@ -46,6 +46,7 @@ for name, table in data['current']['tables'].items():
 for edge in data['current']['edges']:
     assert edge['from'] in data['current']['tables'] and edge['to'] in data['current']['tables']
 version = next(line for line in source.splitlines() if line.startswith('版：'))
+branch = re.search(r'対象ブランチ：`([^`]+)`', source)[1]
 html = r'''<!doctype html>
 <html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>請求管理システム データのつながり</title>
@@ -70,12 +71,12 @@ const list=document.getElementById('table-list'), detail=document.getElementById
 function el(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
 function tableButton(id){const t=models[scope].tables[id],b=el('button');b.type='button';b.append(el('strong',t.name),el('code',id));b.onclick=()=>{selected=id;render();};return b;}
 function section(title,edges,incoming){detail.append(el('h3',title));if(!edges.length){detail.append(el('p','なし','empty'));return;}for(const e of edges){const row=el('div',undefined,'relation'),other=incoming?e.from:e.to;row.append(tableButton(other));const desc=el('div');desc.append(el('span',incoming?`この1件につき ${e.parent}件を参照`:`この1件に対し ${e.children}が関連`));row.append(desc);detail.append(row);}}
-function render(){const model=models[scope];if(!model.tables[selected])selected='clients';document.getElementById('scope-note').textContent='mvp/2の作業ツリーに反映されたDB版9の物理定義です。コード反映と受入完了は区別し、完了状態は仕様管理で確認してください。';list.replaceChildren();for(const id of Object.keys(model.tables)){const b=tableButton(id);b.setAttribute('aria-pressed',String(id===selected));list.append(b);}const t=model.tables[selected];detail.replaceChildren(el('h2',t.name),el('code',selected),el('p',t.role));section('参照先',model.edges.filter(e=>e.to===selected),true);section('このテーブルを参照するデータ',model.edges.filter(e=>e.from===selected),false);detail.append(el('h3','現行の全項目（物理定義）'));const wrap=el('div');wrap.style.overflowX='auto';const tbl=el('table'),head=el('thead'),hr=el('tr');for(const label of ['列名・内容','型','NULL','既定値','キー']){const th=el('th',label);th.scope='col';hr.append(th);}head.append(hr);tbl.append(head);const body=el('tbody');for(const [type,name,key] of t.fields){const meta=t.metadata[name],tr=el('tr'),td=el('td');td.append(el('code',name),el('div',meta.description));tr.append(td,el('td',type),el('td',meta.nullable),el('td',meta.default||'空文字'),el('td',key||'—'));body.append(tr);}tbl.append(body);wrap.append(tbl);detail.append(wrap);if(selected==='invoices')detail.append(el('p','保存するtotal_yenは源泉控除前の小計。画面の請求額＝小計−手入力の源泉額。','note'));}
+function render(){const model=models[scope];if(!model.tables[selected])selected='clients';document.getElementById('scope-note').textContent='__BRANCH__の作業ツリーに反映されたDBスキーマバージョン9の物理定義です。コード反映と受入完了は区別し、完了状態は仕様管理で確認してください。';list.replaceChildren();for(const id of Object.keys(model.tables)){const b=tableButton(id);b.setAttribute('aria-pressed',String(id===selected));list.append(b);}const t=model.tables[selected];detail.replaceChildren(el('h2',t.name),el('code',selected),el('p',t.role));section('参照先',model.edges.filter(e=>e.to===selected),true);section('このテーブルを参照するデータ',model.edges.filter(e=>e.from===selected),false);detail.append(el('h3','現行の全項目（物理定義）'));const wrap=el('div');wrap.style.overflowX='auto';const tbl=el('table'),head=el('thead'),hr=el('tr');for(const label of ['列名・内容','型','NULL','既定値','キー']){const th=el('th',label);th.scope='col';hr.append(th);}head.append(hr);tbl.append(head);const body=el('tbody');for(const [type,name,key] of t.fields){const meta=t.metadata[name],tr=el('tr'),td=el('td');td.append(el('code',name),el('div',meta.description));tr.append(td,el('td',type),el('td',meta.nullable),el('td',meta.default||'空文字'),el('td',key||'—'));body.append(tr);}tbl.append(body);wrap.append(tbl);detail.append(wrap);if(selected==='invoices')detail.append(el('p','保存するtotal_yenは源泉控除前の小計。画面の請求額＝小計−手入力の源泉額。','note'));}
 document.querySelectorAll('[data-select]').forEach(a=>a.onclick=e=>{e.preventDefault();selected=a.dataset.select;render();});document.getElementById('version').textContent=version;render();
 </script></html>
 '''
 html = html.replace('__DATA__', json.dumps(data, ensure_ascii=False).replace('<', '\\u003c'))
-html = html.replace('__VERSION__', json.dumps(version, ensure_ascii=False))
+html = html.replace('__VERSION__', json.dumps(version, ensure_ascii=False)).replace('__BRANCH__', branch)
 target = root / 'ER閲覧.html'
 target.write_text(html)
 dot_path = root / 'diagrams/er-overview.dot'

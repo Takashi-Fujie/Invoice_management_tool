@@ -334,9 +334,12 @@ export function createApp({
   });
   app.setErrorHandler((e, req, reply) =>
     reply.code(e.statusCode || 500).send({
-      message: e.statusCode
-        ? e.message
-        : "保存・読取に失敗しました。入力を残したまま再試行してください。",
+      message:
+        e.statusCode === 413
+          ? "ファイルのサイズが上限（20MiB）を超えています。現在のDBは変更していません。"
+          : e.statusCode
+            ? e.message
+            : "保存・読取に失敗しました。入力を残したまま再試行してください。",
     }),
   );
   app.get("/api/month/:year/:month", async (req) =>

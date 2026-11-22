@@ -1,7 +1,16 @@
 import { test, expect } from "vitest";
 import { createApp } from "../server/app.mjs";
-import { captureBackup } from "../server/backup.mjs";
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { verifyBackup, captureBackup } from "../server/backup.mjs";
+import {
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  statSync,
+} from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -10,17 +19,17 @@ const headers = {
   origin: "http://127.0.0.1:8787",
   "x-invoice-request": "1",
 };
-const destination = "test-spreadsheet";
-const put = (app, payload) =>
-  app.inject({ method: "PUT", url: "/api/month/2026/11", headers, payload });
-const post = (app, action, payload) =>
+const post = (app, action, payload = {}) =>
   app.inject({
     method: "POST",
-    url: `/api/backup/${action}`,
+    url: "/api/backup/" + action,
     headers,
-    payload: { connectionId: "connection-one", ...payload },
+    payload,
   });
-const data = (name) => ({
+const get = (app) => app.inject({ url: "/api/month/2026/11", headers });
+const put = (app, payload) =>
+  app.inject({ method: "PUT", url: "/api/month/2026/11", headers, payload });
+const data = (name = "青葉制作（架空）") => ({
   companies: [
     {
       id: "a",
@@ -34,126 +43,138 @@ const data = (name) => ({
     },
   ],
 });
-function setup(path = ":memory:") {
-  let archived,
-    failure = false,
-    selected = destination,
-    connectionId = "connection-one",
-    googleCalls = 0;
-  const google = {
-    upload: async (_destination, snapshot) => {
-      googleCalls++;
-      if (failure) throw Error("private google error");
-      archived = snapshot;
-      return {
-        title: "請求管理ツール_バックアップ_202611031230",
-        sheetId: 1,
-        manifest: snapshot.manifest,
-      };
-    },
-    list: async () => [
-      {
-        sheetId: 1,
-        title: "請求管理ツール_バックアップ_202611031230",
-        createdAt: archived.manifest.createdAt,
-      },
-    ],
-    download: async () => archived,
-  };
-  const auth = {
-    status: () => ({ configured: true, connected: !!selected }),
-    selectedFile: () =>
-      selected ? { id: selected, name: "架空バックアップ用" } : null,
-    selectionKey: () => connectionId,
-    getAccessToken: async () => "test",
-    configure: () => {},
-    start: () => {},
-    finish: () => {},
-  };
-  const app = createApp({ path, backupOptions: { google, auth } });
-  return {
-    app,
-    get googleCalls() {
-      return googleCalls;
-    },
-    get connectionId() {
-      return connectionId;
-    },
-    changeSelection(id) {
-      selected = id;
-      connectionId += "-new";
-    },
-    setFailure: () => {
-      failure = true;
-    },
-    clearFailure: () => {
-      failure = false;
-    },
-    get snapshot() {
-      return archived;
-    },
-  };
-}
+const folder = () => mkdtempSync(join(tmpdir(), "invoice-file-api-"));
 
-test("S20-T09/T11：確認だけでは変えず、確認した世代を退避付きで全件復元する", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "invoice-s20-api-")),
-    { app } = setup(join(directory, "db.sqlite"));
+test("S20-T01/T05/T13：Google未設定で全件JSONを書出し、日時付き新規名を提案する", async () => {
+  const app = createApp({ path: ":memory:" });
   try {
-    expect((await put(app, data("元の架空会社"))).statusCode).toBe(200);
-    const backup = await post(app, "run", {
-      destination,
-      requestId: "request-one",
-    });
-    expect(backup.statusCode).toBe(200);
-    const current = (
-      await app.inject({ url: "/api/month/2026/11", headers })
-    ).json();
-    current.companies[0].name = "変更後の架空会社";
-    expect((await put(app, current)).statusCode).toBe(200);
-    const preview = await post(app, "preview", { destination, sheetId: 1 });
-    expect(preview.statusCode).toBe(200);
-    expect(preview.json()).not.toHaveProperty("body");
+    await put(app, data());
+    const before = (await get(app)).body;
+    const exported = await post(app, "export");
+    expect(exported.statusCode).toBe(200);
+    const snapshot = verifyBackup(exported.json());
+    expect(snapshot.manifest.counts.clients).toBe(1);
+    expect(exported.headers["content-disposition"]).toBeUndefined();
     expect(
-      (await app.inject({ url: "/api/month/2026/11", headers })).json()
-        .companies[0].name,
-    ).toBe("変更後の架空会社");
-    const restored = await post(app, "restore", {
-      previewToken: preview.json().previewToken,
-    });
-    expect(restored.statusCode).toBe(200);
-    const response = await app.inject({ url: "/api/month/2026/11", headers });
-    expect(response.json().companies[0].name).toBe("元の架空会社");
+      decodeURIComponent(exported.headers["x-invoice-backup-file"]),
+    ).toMatch(/請求管理ツール_バックアップ_[0-9]{14}_[a-f0-9-]+\.json/);
+    expect(exported.headers["cache-control"]).toBe("no-store");
+    expect((await get(app)).body).toBe(before);
+    const next = await post(app, "export");
+    expect(next.json().manifest.backupId).not.toBe(snapshot.manifest.backupId);
+    expect(next.headers["x-invoice-backup-file"]).not.toBe(
+      exported.headers["x-invoice-backup-file"],
+    );
     expect(
-      readdirSync(join(directory, "restore-backups")).some((name) =>
-        name.endsWith(".sqlite"),
-      ),
-    ).toBe(true);
+      (await app.inject({ url: "/api/backup/status", headers })).json(),
+    ).toMatchObject({ mode: "file", lastBackup: null });
+  } finally {
+    await app.close();
+  }
+});
+
+test("S20-T11/T15：ファイル内容の確認はDBを変えず、別ファイルの確認で旧結果を無効化する", async () => {
+  const app = createApp({ path: ":memory:" });
+  try {
+    await put(app, data());
+    const backup = (await post(app, "export")).json();
+    const current = (await get(app)).json();
+    current.companies[0].name = "変更後（架空）";
+    await put(app, current);
+    const first = await post(app, "preview", { backup });
+    expect(first.statusCode).toBe(200);
+    expect(first.json()).not.toHaveProperty("body");
+    expect((await get(app)).json().companies[0].name).toBe("変更後（架空）");
+    await post(app, "preview", {
+      backup,
+      previousToken: first.json().previewToken,
+    });
+    expect(
+      (await post(app, "restore", { previewToken: first.json().previewToken }))
+        .statusCode,
+    ).toBe(409);
+  } finally {
+    await app.close();
+  }
+});
+
+test("S20-T04/T09/T11：退避を検証して全件復元し、再起動後も旧画面の保存を拒否する", async () => {
+  const directory = folder(),
+    path = join(directory, "db.sqlite");
+  let app = createApp({ path });
+  try {
+    await put(app, data());
+    const snapshot = (await post(app, "export")).json();
+    const stale = (await get(app)).json();
+    stale.companies[0].name = "復元直前（架空）";
+    await put(app, stale);
+    const expected = (await post(app, "export")).json();
+    const preview = (await post(app, "preview", { backup: snapshot })).json();
+    expect(
+      (await post(app, "restore", { previewToken: preview.previewToken }))
+        .statusCode,
+    ).toBe(200);
+    expect((await get(app)).json().companies[0].name).toBe("青葉制作（架空）");
+    const saved = join(
+      directory,
+      "restore-backups",
+      readdirSync(join(directory, "restore-backups"))[0],
+    );
+    const copy = new DatabaseSync(saved, { readOnly: true });
+    try {
+      expect(captureBackup(copy).manifest.checksum).toBe(
+        expected.manifest.checksum,
+      );
+    } finally {
+      copy.close();
+    }
+    expect(statSync(saved).mode & 0o077).toBe(0);
+    expect(
+      (await post(app, "restore", { previewToken: preview.previewToken }))
+        .statusCode,
+    ).toBe(409);
+    await app.close();
+    app = createApp({ path });
+    expect((await put(app, stale)).statusCode).toBe(409);
+    const fresh = await get(app);
     expect(
       (
-        await post(app, "restore", {
-          previewToken: preview.json().previewToken,
+        await app.inject({
+          method: "PUT",
+          url: "/api/month/2026/11",
+          headers: {
+            ...headers,
+            "x-invoice-database-generation":
+              fresh.headers["x-invoice-database-generation"],
+          },
+          payload: fresh.json(),
         })
       ).statusCode,
-    ).toBe(409);
-    expect((await put(app, current)).statusCode).toBe(409);
+    ).toBe(200);
   } finally {
     await app.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("S20-T09：確認後の別画面での編集・不正な送信元・確認なしの復元を拒否する", async () => {
-  const { app } = setup();
+test("S20-T03/T07/T09：破損・設定JSON・確認後の編集・確認なし・不正送信元を拒否する", async () => {
+  const app = createApp({ path: ":memory:" });
   try {
-    await put(app, data("架空会社"));
-    await post(app, "run", { destination, requestId: "request-one" });
-    const preview = (
-      await post(app, "preview", { destination, sheetId: 1 })
-    ).json();
-    const current = (
-      await app.inject({ url: "/api/month/2026/11", headers })
-    ).json();
-    current.companies[0].name = "確認後の変更";
+    await put(app, data());
+    const backup = (await post(app, "export")).json();
+    for (const invalid of [
+      null,
+      {},
+      { installed: { client_secret: "fictional" } },
+      { ...backup, manifest: { ...backup.manifest, schemaVersion: 999 } },
+    ]) {
+      expect((await post(app, "preview", { backup: invalid })).statusCode).toBe(
+        400,
+      );
+    }
+    const preview = (await post(app, "preview", { backup })).json();
+    const current = (await get(app)).json();
+    current.companies[0].name = "確認後（架空）";
     await put(app, current);
     expect(
       (await post(app, "restore", { previewToken: preview.previewToken }))
@@ -166,147 +187,130 @@ test("S20-T09：確認後の別画面での編集・不正な送信元・確認�
       (
         await app.inject({
           method: "POST",
-          url: "/api/backup/run",
+          url: "/api/backup/export",
           headers: { host: headers.host },
-          payload: { destination },
+          payload: {},
         })
       ).statusCode,
     ).toBe(403);
-    expect(
-      (await app.inject({ url: "/api/month/2026/11", headers })).json()
-        .companies[0].name,
-    ).toBe("確認後の変更");
+    expect((await get(app)).json().companies[0].name).toBe("確認後（架空）");
   } finally {
     await app.close();
   }
 });
 
-test("S20-T06/T09：失敗後も同じバックアップを再試行し、秘密情報を応答しない", async () => {
-  const state = setup(),
-    { app } = state;
+test("S20-T07：20MiBを超える復元入力は日本語で拒否する", async () => {
+  const app = createApp({ path: ":memory:" });
   try {
-    await put(app, data("架空会社"));
-    state.setFailure();
-    const failed = await post(app, "run", {
-      destination,
-      requestId: "retry-one",
+    const response = await post(app, "preview", {
+      backup: "x".repeat(20 * 1024 * 1024 + 1),
     });
-    expect(failed.statusCode).toBe(500);
-    expect(failed.body).not.toContain("private google error");
-    state.clearFailure();
-    expect(
-      (await post(app, "run", { destination, requestId: "retry-one" }))
-        .statusCode,
-    ).toBe(200);
-    const id = state.snapshot.manifest.backupId;
-    expect(
-      (await post(app, "run", { destination, requestId: "retry-one" }))
-        .statusCode,
-    ).toBe(200);
-    expect(state.snapshot.manifest.backupId).toBe(id);
-    const status = await app.inject({ url: "/api/backup/status", headers });
-    expect(status.statusCode).toBe(200);
-    expect(status.body).not.toContain("test-token");
+    expect(response.statusCode).toBe(413);
+    expect(response.json().message).toContain("サイズ");
   } finally {
     await app.close();
   }
 });
 
-test("S20-T09：復元後に再起動しても旧画面の保存を拒否し、新しく読み込んだ画面は保存できる", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "invoice-s20-generation-")),
-    path = join(directory, "db.sqlite");
-  let { app } = setup(path);
+test("S20-T14/T17：旧Google操作を公開せず、設定・トークンを読み込まない", async () => {
+  const directory = folder(),
+    google = join(directory, "google-backup");
+  mkdirSync(google);
+  writeFileSync(join(google, "client.json"), "壊れた設定");
+  writeFileSync(join(google, "tokens.json"), "secret-not-for-backup");
+  const app = createApp({ path: join(directory, "db.sqlite") });
   try {
-    const stale = (await put(app, data("復元前の架空会社"))).json();
-    await post(app, "run", { destination, requestId: "request-one" });
-    const preview = (
-      await post(app, "preview", { destination, sheetId: 1 })
-    ).json();
-    expect(
-      (await post(app, "restore", { previewToken: preview.previewToken }))
-        .statusCode,
-    ).toBe(200);
-    await app.close();
-    ({ app } = setup(path));
-    expect((await put(app, stale)).statusCode).toBe(409);
-    const current = await app.inject({ url: "/api/month/2026/11", headers });
-    expect(
-      (
-        await app.inject({
-          method: "PUT",
-          url: "/api/month/2026/11",
-          headers: {
-            ...headers,
-            "x-invoice-database-generation":
-              current.headers["x-invoice-database-generation"],
-          },
-          payload: current.json(),
-        })
-      ).statusCode,
-    ).toBe(200);
+    for (const action of ["configure", "start"])
+      expect(
+        (
+          await app.inject({
+            method: "POST",
+            url: "/api/google/" + action,
+            headers,
+            payload: {},
+          })
+        ).statusCode,
+      ).toBe(404);
+    const exported = await post(app, "export");
+    expect(exported.statusCode).toBe(200);
+    expect(exported.body).not.toMatch(
+      /client_secret|secret-not-for-backup|google-backup/,
+    );
+    expect(readFileSync(join(google, "tokens.json"), "utf8")).toBe(
+      "secret-not-for-backup",
+    );
   } finally {
     await app.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("S20-T15：URLの差替えや未選択の実行をGoogle通信より前に拒否する", async () => {
-  const state = setup(),
-    { app } = state;
+test("S20-T18/T19：最新日時と保存場所は完了報告後に記録し、再起動後も保持する", async () => {
+  const directory = folder(),
+    path = join(directory, "db.sqlite");
+  let app = createApp({ path });
   try {
-    for (const action of ["run", "list", "preview"]) {
-      const response = await post(app, action, {
-        destination: "foreign-spreadsheet",
-        sheetId: 1,
-        requestId: "foreign-request",
-      });
-      expect(response.statusCode).toBe(403);
-    }
-    expect(state.googleCalls).toBe(0);
-    state.changeSelection(null);
+    const backup = (await post(app, "export")).json();
+    const recorded = await post(app, "record", {
+      backupId: backup.manifest.backupId,
+      fileName: "backup.json",
+      location: "請求バックアップ/backup.json",
+      method: "directory",
+    });
+    expect(recorded.statusCode).toBe(200);
+    expect(recorded.json().lastBackup).toMatchObject({
+      createdAt: backup.manifest.createdAt,
+      fileName: "backup.json",
+      location: "請求バックアップ/backup.json",
+      method: "directory",
+    });
+    expect(recorded.json().lastBackup.savedAt).toBeTruthy();
+    await post(app, "export");
+    await app.close();
+    app = createApp({ path });
+    const status = (
+      await app.inject({ url: "/api/backup/status", headers })
+    ).json();
+    expect(status.lastBackup).toEqual(recorded.json().lastBackup);
     expect(
-      (await post(app, "run", { destination, requestId: "no-selection" }))
-        .statusCode,
-    ).toBe(401);
-    expect(state.googleCalls).toBe(0);
+      (
+        await post(app, "record", {
+          backupId: "unknown",
+          fileName: "fake.json",
+          location: "fake",
+          method: "directory",
+        })
+      ).statusCode,
+    ).toBe(409);
+    expect(
+      (await app.inject({ url: "/api/backup/status", headers })).json(),
+    ).toEqual(status);
   } finally {
     await app.close();
+    rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("S20-T15：同じファイルでも再認証後に古い確認・再試行を再利用しない", async () => {
-  const state = setup(),
-    { app } = state;
+test("S20-T18/T19：壊れた最新記録を表示せず、DBと新しいバックアップは利用できる", async () => {
+  const directory = folder(),
+    state = join(directory, "backup-state");
+  mkdirSync(state);
+  writeFileSync(
+    join(state, "latest.json"),
+    JSON.stringify({ savedAt: "invalid", location: "broken" }),
+    { mode: 0o600 },
+  );
+  const app = createApp({ path: join(directory, "db.sqlite") });
   try {
-    await put(app, data("元の架空会社"));
-    await post(app, "run", { destination, requestId: "before-reselect" });
-    const preview = (
-      await post(app, "preview", { destination, sheetId: 1 })
+    const status = (
+      await app.inject({ url: "/api/backup/status", headers })
     ).json();
-    state.changeSelection(destination);
-    expect(
-      (await post(app, "restore", { previewToken: preview.previewToken }))
-        .statusCode,
-    ).toBe(409);
-    expect(
-      (await post(app, "run", { destination, requestId: "before-reselect" }))
-        .statusCode,
-    ).toBe(409);
-    expect(state.googleCalls).toBe(1);
-    expect(
-      (await app.inject({ url: "/api/month/2026/11", headers })).json()
-        .companies[0].name,
-    ).toBe("元の架空会社");
-    expect(
-      (
-        await post(app, "run", {
-          destination,
-          requestId: "after-reselect",
-          connectionId: state.connectionId,
-        })
-      ).statusCode,
-    ).toBe(200);
+    expect(status.lastBackup).toBeNull();
+    expect(status.recordWarning).toContain("記録");
+    expect((await post(app, "export")).statusCode).toBe(200);
+    expect((await put(app, data())).statusCode).toBe(200);
   } finally {
     await app.close();
+    rmSync(directory, { recursive: true, force: true });
   }
 });
