@@ -1,0 +1,3 @@
+interface:
+  display_name: "ツールのバージョン更新・リリース"
+  short_description: "請求管理ツールのバージョン更新から検証・GitHub公開まで進める"
