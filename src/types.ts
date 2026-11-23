@@ -23,4 +23,4 @@ export type Company = {
   paid: boolean;
   visible: boolean;
 };
-export type Data = { companies: Company[] };
+export type Data = { companies: Company[]; databaseGeneration?: string };

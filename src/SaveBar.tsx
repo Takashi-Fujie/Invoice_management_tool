@@ -8,7 +8,10 @@ export function SaveBar({
   ready,
   busy,
   valid,
-  onSave,
+  saving,
+  saveError,
+  saveBlocked = false,
+  onRetry,
   invoice,
 }: {
   year: number;
@@ -17,17 +20,28 @@ export function SaveBar({
   ready: boolean;
   busy: boolean;
   valid: boolean;
-  onSave: () => void;
+  saving: boolean;
+  saveError: string;
+  saveBlocked?: boolean;
+  onRetry: () => void;
   invoice?: number | null;
 }) {
   const unsaved = ready && dirty;
-  const status = busy
-    ? "処理中…"
-    : !ready
-      ? "読み込みが完了していません"
-      : dirty
-        ? "未保存の変更があります"
-        : "保存済み";
+  const status = !ready
+    ? "読み込みが完了していません"
+    : saving
+      ? "保存中…"
+      : busy
+        ? "処理中…"
+        : saveBlocked
+          ? "自動保存を停止しています"
+          : dirty && saveError
+            ? "自動保存に失敗しました"
+            : dirty && !valid
+              ? "入力を確認してください"
+              : dirty
+                ? "自動保存待ち"
+                : "保存済み";
   return (
     <div className={`mm-savegroup save-dock${unsaved ? " is-dirty" : ""}`}>
       <div
@@ -37,7 +51,7 @@ export function SaveBar({
         className="mm-save-status save-state"
       >
         <span className="mm-save-indicator save-state-icon" aria-hidden="true">
-          {unsaved ? "!" : busy || !ready ? "…" : "✓"}
+          {saving || busy || !ready ? "…" : unsaved ? "!" : "✓"}
         </span>
         <div className="mm-save-copy">
           <div className="mm-save-heading save-state-heading">
@@ -50,9 +64,10 @@ export function SaveBar({
           </div>
           {unsaved && (
             <p className={valid ? "mm-save-hint" : "mm-error"}>
-              {valid
-                ? "「変更を保存」を押して確定してください。"
-                : "各社の業務内容・時間・単価・金額・税込／税抜・値引き・チェックを確認してください。"}
+              {saveError ||
+                (valid
+                  ? "入力が止まると自動保存します。"
+                  : "各社の業務内容・時間・単価・金額・税込／税抜・値引き・チェックを確認してください。")}
             </p>
           )}
         </div>
@@ -63,28 +78,16 @@ export function SaveBar({
           <strong>{detailMoney("invoice", invoice, true)}</strong>
         </div>
       )}
-      <button
-        type="button"
-        className="mm-save-button save-button"
-        aria-describedby="mm-save-status"
-        disabled={busy || !ready || !valid || !dirty}
-        onClick={onSave}
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
+      {unsaved && saveError && !saveBlocked && (
+        <button
+          type="button"
+          aria-describedby="mm-save-status"
+          disabled={busy || saving || !valid}
+          onClick={onRetry}
         >
-          <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
-        </svg>
-        {busy ? "処理中…" : "変更を保存"}
-      </button>
+          再試行
+        </button>
+      )}
     </div>
   );
 }

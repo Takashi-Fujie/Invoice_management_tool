@@ -1,6 +1,6 @@
 // 生成元: docs/ER図とデータ設計.md。再生成: python3 docs/diagrams/build-er-viewer.py
 digraph ER {
-graph [rankdir=TB,bgcolor="#f7f9fc",pad="0.3",nodesep="0.5",ranksep="0.8",fontname="Hiragino Sans",fontsize=18,label="現行の物理ER · DB版9 · 5表\n版：0.21 S20のバックアップ履歴をDB外へ保持（DBスキーマバージョン9を維持）　更新日：2026年11月22日",labelloc=t];
+graph [rankdir=TB,bgcolor="#f7f9fc",pad="0.3",nodesep="0.5",ranksep="0.8",fontname="Hiragino Sans",fontsize=18,label="現行の物理ER · DB版9 · 5表\n版：0.22 S36〜S38の明細順・自動保存・複数タブ保護（DBスキーマバージョン9を維持）　更新日：2026年11月23日",labelloc=t];
 node [shape=box,style="rounded,filled",fontname="Hiragino Sans",fontsize=13,margin="0.2,0.15",color="#bacbdd",fillcolor=white];
 edge [fontname="Hiragino Sans",fontsize=11,color="#68819a"];
 client_month_visibility [label="月別会社表示\nclient_month_visibility\n4列"];

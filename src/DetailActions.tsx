@@ -1,5 +1,7 @@
 import React from "react";
 
+export { RowDragHandle } from "./RowDragHandle";
+
 export function PreviousMonthAction({
   rowCount,
   companyId,

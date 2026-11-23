@@ -14,11 +14,17 @@ import {
   acceptDiscountRate,
 } from "./reward.mjs";
 import { copyBlockReason, copyPreviousMonth } from "./previous-month.mjs";
-import { deleteMonthRow } from "./detail-actions.mjs";
-import { PreviousMonthAction, DeleteRowButton } from "./DetailActions";
+import { deleteMonthRow, reorderMonthRow } from "./detail-actions.mjs";
+import {
+  PreviousMonthAction,
+  DeleteRowButton,
+  RowDragHandle,
+} from "./DetailActions";
 import { monthSummary } from "./summary.mjs";
 import { MonthlySummary } from "./MonthlySummary";
 import { SaveBar } from "./SaveBar";
+import { AutoSave } from "./autosave.mjs";
+import { TabSync } from "./tab-sync.mjs";
 import { AppFooter } from "./AppFooter";
 import { AppHeader } from "./AppHeader";
 import { PeriodControl } from "./PeriodControl";
@@ -31,8 +37,12 @@ import {
   copyPreviousVisibility,
   isCompanyVisible,
 } from "./company-visibility.mjs";
-let databaseGeneration = "";
-async function request(year: number, month: number, data?: Data) {
+async function request(
+  year: number,
+  month: number,
+  data?: Data,
+  databaseGeneration = "",
+) {
   const r = await fetch(
     `/api/month/${year}/${month}`,
     data
@@ -51,14 +61,16 @@ async function request(year: number, month: number, data?: Data) {
     const e = await r.json().catch(() => ({ message: "通信に失敗しました。" }));
     throw Error(e.message);
   }
-  databaseGeneration = r.headers.get("X-Invoice-Database-Generation") || "";
-  return r.json();
+  return {
+    ...(await r.json()),
+    databaseGeneration: r.headers.get("X-Invoice-Database-Generation") || "",
+  };
 }
 const session = new PeriodSession(
   {
     load: (y: number, m: number) => request(y, m),
     save: (d: Data, y: number, m: number) =>
-      request(y, m, prepareMonth(d, y, m)),
+      request(y, m, prepareMonth(d, y, m), d.databaseGeneration),
   },
   window,
 );
@@ -274,18 +286,20 @@ function App() {
   );
   const leaving = useRef(false);
   async function changePage(view: "annual" | "backup", choice?: string) {
-    await run(async () => {
-      const result = await openMonthlyPage(
-        session,
-        (url: string) => {
-          leaving.current = true;
-          window.location.assign(url);
-        },
-        view,
-        choice,
-      );
-      if (result === "confirm") setPendingPage(view);
-    });
+    await beforeNavigation(choice, () =>
+      run(async () => {
+        const result = await openMonthlyPage(
+          session,
+          (url: string) => {
+            leaving.current = true;
+            window.location.assign(url);
+          },
+          view,
+          choice,
+        );
+        if (result === "confirm") setPendingPage(view);
+      }),
+    );
   }
   const [managerOpen, setManagerOpen] = useState(false);
   const [copyResults, setCopyResults] = useState<Record<string, string>>({});
@@ -301,8 +315,110 @@ function App() {
       month: number;
     } | null>(null),
     [year, setYear] = useState(String(session.year));
+  const [rowDrag, setRowDrag] = useState<{
+    companyId: string;
+    rowId: string;
+    target: number | null;
+  } | null>(null);
+  const [remoteReload, setRemoteReload] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+  const navigationLock = useRef(false);
+  const [autosave] = useState(
+    () => new AutoSave(session, { onChange: () => redraw((n) => n + 1) }),
+  );
   const d = session.draft as Data,
-    busy = session.busy || session.navigating;
+    busy = session.busy || session.navigating || transitioning;
+  const canRefresh = useRef(false);
+  const [tabs] = useState(
+    () =>
+      new TabSync(session, autosave, {
+        onChange: () => redraw((n) => n + 1),
+        canRefresh: () => canRefresh.current,
+      }),
+  );
+  autosave.onSaved = () => tabs.publish();
+  canRefresh.current =
+    ready &&
+    !busy &&
+    !composing &&
+    !pending &&
+    !pendingPage &&
+    !managerOpen &&
+    !companyDialog &&
+    !remoteReload &&
+    !rowDrag;
+  useEffect(() => {
+    tabs.start(window);
+    return () => tabs.stop();
+  }, [tabs]);
+  useEffect(() => {
+    if (tabs.pending && canRefresh.current) void tabs.check();
+    autosave.schedule(
+      !rowDrag &&
+        !tabs.checking &&
+        !tabs.pending &&
+        !remoteReload &&
+        ready &&
+        !busy &&
+        !composing &&
+        !pending &&
+        !pendingPage &&
+        !managerOpen &&
+        !companyDialog,
+    );
+    return () => autosave.cancel();
+  }, [
+    autosave,
+    tabs,
+    tabs.checking,
+    tabs.pending,
+    remoteReload,
+    rowDrag,
+    d,
+    ready,
+    busy,
+    composing,
+    pending,
+    pendingPage,
+    managerOpen,
+    companyDialog,
+  ]);
+  useEffect(() => {
+    const retry = () => {
+      if (ready && canRefresh.current)
+        void tabs
+          .check()
+          .then(() => {
+            if (!autosave.blocked) return autosave.flush();
+          })
+          .catch(() => {});
+    };
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [autosave, tabs, ready]);
+  async function beforeNavigation(
+    choice: string | undefined,
+    task: () => Promise<unknown>,
+  ) {
+    if (navigationLock.current) return;
+    navigationLock.current = true;
+    setTransitioning(true);
+    autosave.schedule(false);
+    try {
+      await autosave.wait().catch(() => {});
+      if (tabs.task) await tabs.task;
+      if (choice === "save" && autosave.blocked) {
+        setError(autosave.blocked);
+        return;
+      }
+      if (!choice) await autosave.flush().catch(() => {});
+      await task();
+    } finally {
+      navigationLock.current = false;
+      setTransitioning(false);
+    }
+  }
   const summary = monthSummary(d.companies);
   const refresh = () => {
     redraw((n) => n + 1);
@@ -343,7 +459,17 @@ function App() {
     return () => window.removeEventListener("beforeunload", guard);
   }, []);
   const edit = (data: Data) => {
-    session.edit(data);
+    session.edit({
+      ...session.draft,
+      ...data,
+      companies: data.companies.map((c) => ({
+        ...c,
+        revision:
+          (session.draft as Data).companies.find(
+            (current: Company) => current.id === c.id,
+          )?.revision ?? c.revision,
+      })),
+    });
     redraw((n) => n + 1);
   };
   const update = (id: string, change: (c: Company) => Company) =>
@@ -361,6 +487,11 @@ function App() {
         delete next[companyId];
         return next;
       });
+    });
+  };
+  const moveRow = (companyId: string, rowId: string, targetIndex: number) => {
+    void run(async () => {
+      reorderMonthRow(session, companyId, rowId, targetIndex);
     });
   };
   const addCompany = () => {
@@ -395,24 +526,32 @@ function App() {
   }
   async function copyCompany(id: string) {
     await run(async () => {
+      autosave.schedule(false);
+      await autosave.wait().catch(() => {});
       const result = await copyPreviousMonth(session, id);
       const period = `${result.year}年${result.month}月`;
       setCopyResults((current) => ({
         ...current,
         [id]: result.count
-          ? `${period}から${result.count}件コピーしました。内容を確認して保存してください。`
+          ? `${period}から${result.count}件コピーしました。内容を確認してください。自動保存します。`
           : `${period}にコピーできる報酬明細がありません。`,
       }));
     });
   }
   async function change(y: number, m: number, choice?: string) {
-    await run(async () => {
-      const result = await session.switchTo(y, m, choice);
-      if (result === "changed" || result === "confirm") setManagerOpen(false);
-      if (result === "changed") setCopyResults({});
-      if (result === "confirm") setPending({ year: y, month: m });
-      else if (result !== "busy") setPending(null);
-    });
+    await beforeNavigation(choice, () =>
+      run(async () => {
+        const result = await session.switchTo(y, m, choice);
+        if (result === "changed" || result === "confirm") setManagerOpen(false);
+        if (result === "changed") {
+          setCopyResults({});
+          autosave.release();
+          tabs.notice = "";
+        }
+        if (result === "confirm") setPending({ year: y, month: m });
+        else if (result !== "busy") setPending(null);
+      }),
+    );
   }
   const cancelSwitch = () => {
     if (!session.busy && !session.navigating) {
@@ -486,7 +625,42 @@ function App() {
             {busy ? "読み込み中…" : "再読み込み"}
           </button>
         )}
-        <fieldset disabled={busy || !ready} className="mm-workspace">
+        {tabs.notice && (
+          <div
+            className={`tab-notice${autosave.blocked ? " is-warning" : ""}`}
+            role={autosave.blocked ? "alert" : "status"}
+          >
+            <p>{tabs.notice}</p>
+            {autosave.blocked && (
+              <div className="tab-notice-actions">
+                <button
+                  disabled={busy || tabs.checking}
+                  onClick={() => void tabs.check()}
+                >
+                  再確認
+                </button>
+                <button
+                  disabled={busy || tabs.checking}
+                  onClick={() => {
+                    setError("");
+                    setRemoteReload(true);
+                  }}
+                >
+                  最新データを読み込む
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        <p id="detail-reorder-help" className="sr-only">
+          つまみをドラッグして明細を移動します。上下キーでも移動でき、Escでドラッグを中止できます。
+        </p>
+        <fieldset
+          onCompositionStartCapture={() => setComposing(true)}
+          onCompositionEndCapture={() => setComposing(false)}
+          disabled={busy || !ready}
+          className="mm-workspace"
+        >
           {ready &&
             !d.companies.some((c) =>
               isCompanyVisible(c, session.year, session.month),
@@ -615,8 +789,8 @@ function App() {
                           "no",
                           "description",
                           "type",
-                          "hours",
                           "rate",
+                          "hours",
                           "tax",
                           "amount",
                           "discount",
@@ -633,8 +807,8 @@ function App() {
                             "No.",
                             "業務内容",
                             "報酬タイプ",
-                            "時間（h）",
                             "単価（円）",
+                            "時間（h）",
                             "税込／税抜",
                             "金額（円）",
                             "値引き",
@@ -650,9 +824,45 @@ function App() {
                       </thead>
                       <tbody>
                         {c.rows.map((r, i) => (
-                          <tr key={r.id} className="mm-row">
+                          <tr
+                            key={r.id}
+                            data-row-id={r.id}
+                            className={`mm-row${rowDrag?.companyId === c.id && rowDrag.rowId === r.id ? " is-dragging" : ""}`}
+                            data-drop={
+                              rowDrag?.companyId === c.id &&
+                              rowDrag.target === i &&
+                              rowDrag.rowId !== r.id
+                                ? c.rows.findIndex(
+                                    (row) => row.id === rowDrag.rowId,
+                                  ) > i
+                                  ? "before"
+                                  : "after"
+                                : undefined
+                            }
+                          >
                             <td className="mm-row-number row-number">
-                              {i + 1}
+                              <RowDragHandle
+                                companyName={c.name}
+                                index={i}
+                                count={c.rows.length}
+                                disabled={busy || c.invoiced || c.paid}
+                                onMove={(target) => moveRow(c.id, r.id, target)}
+                                onDragChange={(target) =>
+                                  setRowDrag((current) =>
+                                    target === undefined
+                                      ? null
+                                      : current?.companyId === c.id &&
+                                          current.rowId === r.id &&
+                                          current.target === target
+                                        ? current
+                                        : {
+                                            companyId: c.id,
+                                            rowId: r.id,
+                                            target,
+                                          },
+                                  )
+                                }
+                              />
                             </td>
                             <td>
                               <input
@@ -694,17 +904,6 @@ function App() {
                               <>
                                 <td>
                                   <DecimalInput
-                                    label={`${c.name}の${i + 1}行目の時間`}
-                                    value={r.hours}
-                                    placeholder="例：1.5"
-                                    disabled={c.invoiced}
-                                    onChange={(hours) =>
-                                      updateRow(c.id, r.id, { hours })
-                                    }
-                                  />
-                                </td>
-                                <td>
-                                  <DecimalInput
                                     label={`${c.name}の${i + 1}行目の単価（円）`}
                                     value={r.rate}
                                     placeholder="例：3000"
@@ -714,18 +913,29 @@ function App() {
                                     }
                                   />
                                 </td>
+                                <td>
+                                  <DecimalInput
+                                    label={`${c.name}の${i + 1}行目の時間`}
+                                    value={r.hours}
+                                    placeholder="例：1.5"
+                                    disabled={c.invoiced}
+                                    onChange={(hours) =>
+                                      updateRow(c.id, r.id, { hours })
+                                    }
+                                  />
+                                </td>
                               </>
                             ) : (
                               <>
                                 <td
                                   className="mm-unused"
-                                  aria-label={`${r.rewardType === "adjustment" ? "調整" : r.rewardType === "expense" ? "立替経費" : r.rewardType === "travel" ? "交通費" : "案件単価"}では時間を使用しません`}
+                                  aria-label={`${r.rewardType === "adjustment" ? "調整" : r.rewardType === "expense" ? "立替経費" : r.rewardType === "travel" ? "交通費" : "案件単価"}では単価を使用しません`}
                                 >
                                   —
                                 </td>
                                 <td
                                   className="mm-unused"
-                                  aria-label={`${r.rewardType === "adjustment" ? "調整" : r.rewardType === "expense" ? "立替経費" : r.rewardType === "travel" ? "交通費" : "案件単価"}では単価を使用しません`}
+                                  aria-label={`${r.rewardType === "adjustment" ? "調整" : r.rewardType === "expense" ? "立替経費" : r.rewardType === "travel" ? "交通費" : "案件単価"}では時間を使用しません`}
                                 >
                                   —
                                 </td>
@@ -910,9 +1120,39 @@ function App() {
         busy={busy}
         valid={valid}
         invoice={summary.total.invoice}
-        onSave={() => void run(() => session.save())}
+        saving={autosave.saving}
+        saveError={autosave.blocked || autosave.error}
+        saveBlocked={!!autosave.blocked}
+        onRetry={() => void autosave.flush().catch(() => {})}
       />
       <AppFooter />
+      {remoteReload && (
+        <Modal
+          title="最新データを読み込みますか？"
+          onCancel={() => setRemoteReload(false)}
+        >
+          <p>
+            このタブの未保存入力を破棄し、別タブで保存された最新データを読み込みます。
+          </p>
+          {error && <p role="alert">{error}</p>}
+          <div className="mm-dialog-actions">
+            <button disabled={busy} onClick={() => setRemoteReload(false)}>
+              中止
+            </button>
+            <button
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  await tabs.reload();
+                  setRemoteReload(false);
+                })
+              }
+            >
+              未保存入力を破棄して読み込む
+            </button>
+          </div>
+        </Modal>
+      )}
       {managerOpen && (
         <Modal
           title="会社の表示・追加"
@@ -1000,7 +1240,7 @@ function App() {
               破棄して移動
             </button>
             <button
-              disabled={busy || !valid}
+              disabled={busy || !valid || !!autosave.blocked}
               className="mm-primary"
               onClick={() => void changePage(pendingPage!, "save")}
             >
@@ -1029,7 +1269,7 @@ function App() {
               破棄して切替
             </button>
             <button
-              disabled={busy || !valid}
+              disabled={busy || !valid || !!autosave.blocked}
               className="mm-primary"
               onClick={() => void change(pending.year, pending.month, "save")}
             >
